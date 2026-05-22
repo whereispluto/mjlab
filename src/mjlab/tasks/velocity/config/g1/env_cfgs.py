@@ -218,3 +218,26 @@ def unitree_g1_flat_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     twist_cmd.ranges.ang_vel_z = (-0.7, 0.7)
 
   return cfg
+
+
+def unitree_g1_flat_forward_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Create a flat-terrain G1 configuration for forward walking only."""
+  cfg = unitree_g1_flat_env_cfg(play=play)
+
+  twist_cmd = cfg.commands["twist"]
+  assert isinstance(twist_cmd, UniformVelocityCommandCfg)
+
+  # Keep the command in the robot's forward direction and within walking speed.
+  twist_cmd.heading_command = False
+  twist_cmd.rel_heading_envs = 0.0
+  twist_cmd.rel_world_envs = 0.0
+  twist_cmd.rel_forward_envs = 1.0
+  twist_cmd.ranges.heading = None
+  twist_cmd.ranges.lin_vel_x = (0.3, 1.0)
+  twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
+  twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
+
+  # Remove the curriculum stages that expand the command into running speeds.
+  cfg.curriculum.pop("command_vel", None)
+
+  return cfg
