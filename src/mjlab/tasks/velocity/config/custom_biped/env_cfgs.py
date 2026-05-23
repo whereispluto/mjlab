@@ -114,11 +114,24 @@ def _custom_biped_flat_forward_env_cfg(
     r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.05,
   }
 
-  cfg.rewards["track_linear_velocity"].weight = 2.0
+  # Increase speed tracking weight to encourage forward locomotion.
+  cfg.rewards["track_linear_velocity"].weight = 8.0
   cfg.rewards["track_angular_velocity"].weight = 0.25
   cfg.rewards["body_ang_vel"].weight = -0.01
   cfg.rewards["angular_momentum"].weight = 0.0
   cfg.rewards["air_time"].weight = 0.15
+
+  # Reduce action-rate penalty (temporarily) to allow larger action changes.
+  if "action_rate_l2" in cfg.rewards:
+    # Set to 0.0 to remove the early-stage penalty; revert later if needed.
+    cfg.rewards["action_rate_l2"].weight = 0.0
+
+  # Temporarily lower pose/upright penalties so the agent prioritizes
+  # following the velocity command during this short experiment.
+  if "pose" in cfg.rewards:
+    cfg.rewards["pose"].weight = 0.5
+  if "upright" in cfg.rewards:
+    cfg.rewards["upright"].weight = 0.2
 
   cfg.rewards["self_collisions"] = RewardTermCfg(
     func=mdp.self_collision_cost,
@@ -159,7 +172,7 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.events.pop("push_robot", None)
     cfg.terminations.pop("out_of_terrain_bounds", None)
     cfg.curriculum = {}
-    twist_cmd.ranges.lin_vel_x = (0.0, 1.5)
+    twist_cmd.ranges.lin_vel_x = (0.6, 0.6) # Set to a fixed value for playing
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
     twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 

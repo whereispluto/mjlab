@@ -17,7 +17,7 @@ def custom_biped_ppo_runner_cfg(
       obs_normalization=True,
       distribution_cfg={
         "class_name": "GaussianDistribution",
-        "init_std": 1.0,
+        "init_std": 2.0,
         "std_type": "scalar",
       },
     ),
@@ -30,7 +30,7 @@ def custom_biped_ppo_runner_cfg(
       value_loss_coef=1.0,
       use_clipped_value_loss=True,
       clip_param=0.2,
-      entropy_coef=0.01,
+      entropy_coef=0.05,
       num_learning_epochs=5,
       num_mini_batches=4,
       learning_rate=1.0e-3,
