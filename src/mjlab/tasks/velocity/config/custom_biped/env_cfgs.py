@@ -159,7 +159,7 @@ def _custom_biped_flat_forward_env_cfg(
     },
   )
 
-  for reward_name in ["foot_swing_height"]:
+  for reward_name in ["foot_clearance", "foot_swing_height"]:
     cfg.rewards.pop(reward_name, None)
   if "foot_slip" in cfg.rewards:
     cfg.rewards["foot_slip"].params["asset_cfg"] = SceneEntityCfg(
