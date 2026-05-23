@@ -11,7 +11,7 @@ from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
-from mjlab.sensor import ContactMatch, ContactSensorCfg, ObjRef, BuiltinSensorCfg
+from mjlab.sensor import BuiltinSensorCfg, ContactMatch, ContactSensorCfg, ObjRef
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
@@ -107,7 +107,7 @@ def _custom_biped_flat_forward_env_cfg(
   twist_cmd.rel_world_envs = 0.0
   twist_cmd.rel_forward_envs = 1.0
   twist_cmd.ranges.heading = None
-  twist_cmd.ranges.lin_vel_x = (0.3, 1.0)
+  twist_cmd.ranges.lin_vel_x = (-0.2, 0.6)
   twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
   twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
@@ -131,24 +131,19 @@ def _custom_biped_flat_forward_env_cfg(
     r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.05,
   }
 
-  # Increase speed tracking weight to encourage forward locomotion.
-  cfg.rewards["track_linear_velocity"].weight = 8.0
+  cfg.rewards["track_linear_velocity"].weight = 2.5
   cfg.rewards["track_angular_velocity"].weight = 0.25
   cfg.rewards["body_ang_vel"].weight = -0.01
   cfg.rewards["angular_momentum"].weight = 0.0
   cfg.rewards["air_time"].weight = 0.15
 
-  # Reduce action-rate penalty (temporarily) to allow larger action changes.
   if "action_rate_l2" in cfg.rewards:
-    # Set to 0.0 to remove the early-stage penalty; revert later if needed.
-    cfg.rewards["action_rate_l2"].weight = 0.0
+    cfg.rewards["action_rate_l2"].weight = -0.05
 
-  # Temporarily lower pose/upright penalties so the agent prioritizes
-  # following the velocity command during this short experiment.
   if "pose" in cfg.rewards:
-    cfg.rewards["pose"].weight = 0.5
+    cfg.rewards["pose"].weight = 1.0
   if "upright" in cfg.rewards:
-    cfg.rewards["upright"].weight = 0.2
+    cfg.rewards["upright"].weight = 1.0
 
   cfg.rewards["self_collisions"] = RewardTermCfg(
     func=mdp.self_collision_cost,
@@ -164,17 +159,20 @@ def _custom_biped_flat_forward_env_cfg(
     },
   )
 
-  for reward_name in ["foot_clearance", "foot_slip", "foot_swing_height"]:
+  for reward_name in ["foot_swing_height"]:
     cfg.rewards.pop(reward_name, None)
+  if "foot_slip" in cfg.rewards:
+    cfg.rewards["foot_slip"].params["asset_cfg"] = SceneEntityCfg(
+      "robot", body_names=("left_ankle_link", "right_ankle_link")
+    )
 
   cfg.terminations.pop("out_of_terrain_bounds", None)
-  # Tighten bad_orientation: a biped leaning back >60° has already fallen.
-  cfg.terminations["fell_over"].params["limit_angle"] = math.radians(60.0)
-  # Terminate when the base drops below 0.38 m (nominal height ≈ 0.53 m),
-  # which indicates the robot has collapsed onto the ground.
+  cfg.terminations["fell_over"].params["limit_angle"] = math.radians(75.0)
+  # Terminate when the base drops below 0.30 m (nominal height ≈ 0.53 m),
+  # which gives the robot more time to recover from minor collapses.
   cfg.terminations["base_too_low"] = TerminationTermCfg(
     func=mdp.root_height_below_minimum,
-    params={"minimum_height": 0.38},
+    params={"minimum_height": 0.30},
   )
   # Terminate when the base touches the ground.
   cfg.terminations["base_contact"] = TerminationTermCfg(
