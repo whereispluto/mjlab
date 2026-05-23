@@ -75,9 +75,23 @@ def _custom_biped_flat_forward_env_cfg(
     num_slots=1,
     history_length=4,
   )
+  base_ground_cfg = ContactSensorCfg(
+    name="base_ground_touch",
+    primary=ContactMatch(
+      mode="body",
+      pattern="base_link",
+      entity="robot",
+    ),
+    secondary=ContactMatch(mode="body", pattern="terrain"),
+    fields=("found", "force"),
+    reduce="none",
+    num_slots=1,
+    history_length=4,
+  )
   cfg.scene.sensors = (cfg.scene.sensors or ()) + (
     feet_ground_cfg,
     self_collision_cfg,
+    base_ground_cfg,
   )
 
   joint_pos_action = cfg.actions["joint_pos"]
@@ -141,6 +155,14 @@ def _custom_biped_flat_forward_env_cfg(
     weight=-1.0,
     params={"sensor_name": self_collision_cfg.name, "force_threshold": 10.0},
   )
+  cfg.rewards["base_contact"] = RewardTermCfg(
+    func=mdp.self_collision_cost,
+    weight=-10.0,
+    params={
+      "sensor_name": base_ground_cfg.name,
+      "force_threshold": 10.0,
+    },
+  )
 
   for reward_name in ["foot_clearance", "foot_slip", "foot_swing_height"]:
     cfg.rewards.pop(reward_name, None)
@@ -153,6 +175,14 @@ def _custom_biped_flat_forward_env_cfg(
   cfg.terminations["base_too_low"] = TerminationTermCfg(
     func=mdp.root_height_below_minimum,
     params={"minimum_height": 0.38},
+  )
+  # Terminate when the base touches the ground.
+  cfg.terminations["base_contact"] = TerminationTermCfg(
+    func=mdp.illegal_contact,
+    params={
+      "sensor_name": base_ground_cfg.name,
+      "force_threshold": 10.0,
+    },
   )
   cfg.curriculum.pop("terrain_levels", None)
 
