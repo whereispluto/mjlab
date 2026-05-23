@@ -58,7 +58,7 @@
     <link rel="prev" title="Research" href="research.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="May 22, 2026"/>
+    <meta name="docbuild:last-update" content="May 23, 2026"/>
   </head>
   
   
@@ -511,6 +511,11 @@ document.write(`
 <section id="added">
 <h3>Added<a class="headerlink" href="#added" title="Link to this heading">#</a></h3>
 <ul class="simple">
+<li><p>Added a custom 3-DoF biped velocity task template in <code class="docutils literal notranslate"><span class="pre">mjlab</span></code> that
+reuses the LearningHumanoidWalking biped MuJoCo asset and provides both
+a baseline policy with base linear velocity observations and a final
+deployment-oriented variant that removes actor base linear velocity but
+keeps it for the critic during training.</p></li>
 <li><p>Added <code class="docutils literal notranslate"><span class="pre">DebugVisualizer.add_box</span></code> for drawing an axis-oriented box
 primitive, mirroring <code class="docutils literal notranslate"><span class="pre">add_ellipsoid</span></code>. Supported by both the native
 and Viser viewers. <code class="docutils literal notranslate"><span class="pre">size</span></code> is the box half-extents (<a class="extlink-issue reference external" href="https://github.com/mujocolab/mjlab/issues/992">#992</a>).</p></li>
@@ -1252,7 +1257,7 @@ By The mjlab Developers
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on May 22, 2026.
+  Last updated on May 23, 2026.
   <br/>
 </p>
   </div>
