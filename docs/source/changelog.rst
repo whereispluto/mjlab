@@ -8,6 +8,12 @@ Upcoming version (not yet released)
 Added
 ^^^^^
 
+- Added a custom 3-DoF biped velocity task template in ``mjlab`` that
+  reuses the LearningHumanoidWalking biped MuJoCo asset and provides both
+  a baseline policy with base linear velocity observations and a final
+  deployment-oriented variant that removes actor base linear velocity but
+  keeps it for the critic during training.
+
 - Added ``DebugVisualizer.add_box`` for drawing an axis-oriented box
   primitive, mirroring ``add_ellipsoid``. Supported by both the native
   and Viser viewers. ``size`` is the box half-extents (:issue:`992`).

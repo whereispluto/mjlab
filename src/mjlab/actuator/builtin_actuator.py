@@ -79,18 +79,31 @@ class BuiltinPositionActuator(Actuator[BuiltinPositionActuatorCfg]):
   def edit_spec(self, spec: mujoco.MjSpec, target_names: list[str]) -> None:
     # Add <position> actuator to spec, one per target.
     for target_name in target_names:
-      actuator = create_position_actuator(
-        spec,
-        target_name,
-        stiffness=self.cfg.stiffness,
-        damping=self.cfg.damping,
-        effort_limit=self.cfg.effort_limit,
-        armature=self.cfg.armature,
-        frictionloss=self.cfg.frictionloss,
-        viscous_damping=self.cfg.viscous_damping,
-        transmission_type=self.cfg.transmission_type,
-      )
-      self._mjs_actuators.append(actuator)
+      # If an actuator with this name already exists in the spec, reuse it
+      # instead of adding a duplicate (some XMLs pre-declare motors/actuators).
+      existing = None
+      for a in spec.actuators:
+        try:
+          if a.name == target_name:
+            existing = a
+            break
+        except Exception:
+          continue
+      if existing is not None:
+        self._mjs_actuators.append(existing)
+      else:
+        actuator = create_position_actuator(
+          spec,
+          target_name,
+          stiffness=self.cfg.stiffness,
+          damping=self.cfg.damping,
+          effort_limit=self.cfg.effort_limit,
+          armature=self.cfg.armature,
+          frictionloss=self.cfg.frictionloss,
+          viscous_damping=self.cfg.viscous_damping,
+          transmission_type=self.cfg.transmission_type,
+        )
+        self._mjs_actuators.append(actuator)
 
   def compute(self, cmd: ActuatorCmd) -> torch.Tensor:
     return cmd.position_target
@@ -135,17 +148,28 @@ class BuiltinMotorActuator(Actuator[BuiltinMotorActuatorCfg]):
   def edit_spec(self, spec: mujoco.MjSpec, target_names: list[str]) -> None:
     # Add <motor> actuator to spec, one per target.
     for target_name in target_names:
-      actuator = create_motor_actuator(
-        spec,
-        target_name,
-        effort_limit=self.cfg.effort_limit,
-        gear=self.cfg.gear,
-        armature=self.cfg.armature,
-        frictionloss=self.cfg.frictionloss,
-        viscous_damping=self.cfg.viscous_damping,
-        transmission_type=self.cfg.transmission_type,
-      )
-      self._mjs_actuators.append(actuator)
+      existing = None
+      for a in spec.actuators:
+        try:
+          if a.name == target_name:
+            existing = a
+            break
+        except Exception:
+          continue
+      if existing is not None:
+        self._mjs_actuators.append(existing)
+      else:
+        actuator = create_motor_actuator(
+          spec,
+          target_name,
+          effort_limit=self.cfg.effort_limit,
+          gear=self.cfg.gear,
+          armature=self.cfg.armature,
+          frictionloss=self.cfg.frictionloss,
+          viscous_damping=self.cfg.viscous_damping,
+          transmission_type=self.cfg.transmission_type,
+        )
+        self._mjs_actuators.append(actuator)
 
   def compute(self, cmd: ActuatorCmd) -> torch.Tensor:
     return cmd.effort_target
@@ -198,17 +222,28 @@ class BuiltinVelocityActuator(Actuator[BuiltinVelocityActuatorCfg]):
   def edit_spec(self, spec: mujoco.MjSpec, target_names: list[str]) -> None:
     # Add <velocity> actuator to spec, one per target.
     for target_name in target_names:
-      actuator = create_velocity_actuator(
-        spec,
-        target_name,
-        damping=self.cfg.damping,
-        effort_limit=self.cfg.effort_limit,
-        armature=self.cfg.armature,
-        frictionloss=self.cfg.frictionloss,
-        viscous_damping=self.cfg.viscous_damping,
-        transmission_type=self.cfg.transmission_type,
-      )
-      self._mjs_actuators.append(actuator)
+      existing = None
+      for a in spec.actuators:
+        try:
+          if a.name == target_name:
+            existing = a
+            break
+        except Exception:
+          continue
+      if existing is not None:
+        self._mjs_actuators.append(existing)
+      else:
+        actuator = create_velocity_actuator(
+          spec,
+          target_name,
+          damping=self.cfg.damping,
+          effort_limit=self.cfg.effort_limit,
+          armature=self.cfg.armature,
+          frictionloss=self.cfg.frictionloss,
+          viscous_damping=self.cfg.viscous_damping,
+          transmission_type=self.cfg.transmission_type,
+        )
+        self._mjs_actuators.append(actuator)
 
   def compute(self, cmd: ActuatorCmd) -> torch.Tensor:
     return cmd.velocity_target
