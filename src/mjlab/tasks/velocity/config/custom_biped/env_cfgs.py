@@ -1,5 +1,7 @@
 """Custom biped velocity environment configurations."""
 
+import math
+
 from mjlab.asset_zoo.robots import (
   CUSTOM_BIPED_ACTION_SCALE,
   get_custom_biped_robot_cfg,
@@ -8,6 +10,7 @@ from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
+from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg, ObjRef, BuiltinSensorCfg
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
@@ -143,6 +146,14 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.rewards.pop(reward_name, None)
 
   cfg.terminations.pop("out_of_terrain_bounds", None)
+  # Tighten bad_orientation: a biped leaning back >60° has already fallen.
+  cfg.terminations["fell_over"].params["limit_angle"] = math.radians(60.0)
+  # Terminate when the base drops below 0.38 m (nominal height ≈ 0.53 m),
+  # which indicates the robot has collapsed onto the ground.
+  cfg.terminations["base_too_low"] = TerminationTermCfg(
+    func=mdp.root_height_below_minimum,
+    params={"minimum_height": 0.38},
+  )
   cfg.curriculum.pop("terrain_levels", None)
 
   actor_terms = cfg.observations["actor"].terms
