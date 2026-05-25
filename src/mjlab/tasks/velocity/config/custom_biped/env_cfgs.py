@@ -131,19 +131,19 @@ def _custom_biped_flat_forward_env_cfg(
     r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.05,
   }
 
-  cfg.rewards["track_linear_velocity"].weight = 2.5
+  cfg.rewards["track_linear_velocity"].weight = 4.0
   cfg.rewards["track_angular_velocity"].weight = 0.25
   cfg.rewards["body_ang_vel"].weight = -0.01
   cfg.rewards["angular_momentum"].weight = 0.0
   cfg.rewards["air_time"].weight = 0.15
 
   if "action_rate_l2" in cfg.rewards:
-    cfg.rewards["action_rate_l2"].weight = -0.05
+    cfg.rewards["action_rate_l2"].weight = -0.01
 
   if "pose" in cfg.rewards:
-    cfg.rewards["pose"].weight = 1.0
+    cfg.rewards["pose"].weight = 0.4
   if "upright" in cfg.rewards:
-    cfg.rewards["upright"].weight = 1.0
+    cfg.rewards["upright"].weight = 0.8
 
   cfg.rewards["self_collisions"] = RewardTermCfg(
     func=mdp.self_collision_cost,
@@ -211,7 +211,7 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.events.pop("push_robot", None)
     cfg.terminations.pop("out_of_terrain_bounds", None)
     cfg.curriculum = {}
-    twist_cmd.ranges.lin_vel_x = (0.2, 0.2) # Set to a fixed value for playing
+    twist_cmd.ranges.lin_vel_x = (-0.1, -0.1) # Set to a fixed value for playing
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
     twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
