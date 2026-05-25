@@ -106,8 +106,9 @@ def _custom_biped_flat_forward_env_cfg(
   twist_cmd.rel_heading_envs = 0.0
   twist_cmd.rel_world_envs = 0.0
   twist_cmd.rel_forward_envs = 1.0
+  twist_cmd.rel_standing_envs = 0.0
   twist_cmd.ranges.heading = None
-  twist_cmd.ranges.lin_vel_x = (-0.2, 0.6)
+  twist_cmd.ranges.lin_vel_x = (0.3, 1.0)
   twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
   twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
@@ -135,7 +136,7 @@ def _custom_biped_flat_forward_env_cfg(
   cfg.rewards["track_angular_velocity"].weight = 0.25
   cfg.rewards["body_ang_vel"].weight = -0.01
   cfg.rewards["angular_momentum"].weight = 0.0
-  cfg.rewards["air_time"].weight = 0.15
+  cfg.rewards["air_time"].weight = 0.25
 
   if "action_rate_l2" in cfg.rewards:
     cfg.rewards["action_rate_l2"].weight = -0.01
@@ -211,7 +212,7 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.events.pop("push_robot", None)
     cfg.terminations.pop("out_of_terrain_bounds", None)
     cfg.curriculum = {}
-    twist_cmd.ranges.lin_vel_x = (-0.1, -0.1) # Set to a fixed value for playing
+    twist_cmd.ranges.lin_vel_x = (0.3, 0.3) # Set to a fixed value for playing
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
     twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
