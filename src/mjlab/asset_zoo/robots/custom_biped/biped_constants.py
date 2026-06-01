@@ -8,9 +8,7 @@ from mjlab.actuator import BuiltinPositionActuatorCfg
 from mjlab.entity import EntityArticulationInfoCfg, EntityCfg
 from mjlab.utils.actuator import ElectricActuator
 
-CUSTOM_BIPED_XML: Path = Path(
-  "/home/cx/LearningHumanoidWalking/models/biped/mjcf/biped.xml"
-)
+CUSTOM_BIPED_XML: Path = Path(__file__).resolve().parent / "mjcf" / "biped.xml"
 assert CUSTOM_BIPED_XML.exists()
 
 

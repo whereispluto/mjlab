@@ -1,0 +1,111 @@
+<mujoco model="biped" >
+  <compiler angle="radian" autolimits="true" eulerseq="zyx"/>
+     <option timestep='0.001' iterations='50' solver='PGS' gravity='0 0 -9.81'>
+    <flag frictionloss="enable"/>
+    </option>
+    <size njmax="500" nconmax="100" />
+
+    <visual>
+        <quality shadowsize='4096'/>
+        <map znear='0.05'/>
+    </visual>
+    <default>
+        <joint limited='true'/>
+        <motor ctrllimited='true'/>
+        <geom  condim='4' contype="1" conaffinity="15" solref='0.001 2' friction='0.9 0.2 0.2'/>
+        <equality solref='0.001 2'/>
+        <default class='leg_joint_param'>
+            <joint  damping="0.01" frictionloss="0.01" armature="0.01"/>
+        </default>
+    </default>
+  <statistic meansize="0.164352" extent="1.07561" center="-0.00820016 -1.48012e-05 -0.160784"/>
+
+  <asset>
+    <mesh name="base_link" content_type="model/stl" file="../meshes/base_link.stl"/>
+    <mesh name="left_leg_Link" content_type="model/stl" file="../meshes/left_leg_Link.stl"/>
+    <mesh name="left_knee_link" content_type="model/stl" file="../meshes/left_knee_link.stl"/>
+    <mesh name="left_ankle_link" content_type="model/stl" file="../meshes/left_ankle_link.stl"/>
+    <mesh name="right_leg_link" content_type="model/stl" file="../meshes/right_leg_link.stl"/>
+    <mesh name="right_knee_link" content_type="model/stl" file="../meshes/right_knee_link.stl"/>
+    <mesh name="right_ankle_link" content_type="model/stl" file="../meshes/right_ankle_link.stl"/>
+    <material name="matplane" reflectance="0.3" texture="texplane" texrepeat="1 1" texuniform="true"/>
+    <material name="matgeom" texture="texgeom" texuniform="true" rgba="0.8 0.6 .4 1"/>
+    <texture name="texplane" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" width="512" height="512" mark="cross" markrgb=".8 .8 .8"/>  
+    <texture name="texgeom" type="cube" builtin="flat" mark="cross" width="127" height="1278" rgb1="0.8 0.6 0.4" rgb2="0.8 0.6 0.4" markrgb="1 1 1" random="0.01"/>
+    <texture type="skybox" builtin="gradient" rgb1="1 1 1" rgb2=".6 .8 1" width="256" height="256"/>
+  </asset>
+
+  <worldbody>
+    <light directional="true" diffuse=".4 .4 .4" specular="0.1 0.1 0.1" pos="0 0 5.0" dir="0 0 -1" castshadow="false"/>
+    <light directional="true" diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>
+    <geom name="ground" type="plane" size="0 0 1" pos="0.001 0 0" quat="1 0 0 0" material="matplane" condim="4" conaffinity='15'/>
+    <body name="base_link" pos='0 0 0.53'>
+      <inertial pos="-0.00197519 -0.000666859 0.00700943" quat="0.0557357 0.705656 0.0465698 0.704822" mass="1.0931" diaginertia="0.00811391 0.00765719 0.0041021"/>
+      <joint name="base_x" type="slide" axis="1 0 0" limited="false"/>
+      <joint name="base_z" type="slide" axis="0 0 1" limited="false"/>
+      <joint name="base_pitch" type="hinge" axis="0 1 0" limited="false"/>
+      <site name='imu' size='0.01' pos='0.0 0 0.0' quat='1 0 0 0'/>
+      <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="base_link"/>
+      <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="base_link"/>
+      <body name="left_leg_Link" pos="0 0.0634 -0.03" quat="0.707107 0.707107 0 0">
+        <inertial pos="0.013819 -0.110972 -0.0298055" quat="0.472452 0.484545 -0.447409 0.584663" mass="0.645783" diaginertia="0.00591914 0.00575351 0.000775852"/>
+        <joint name="left_leg_joint" pos="0 0 0" axis="0 0 1" limited="true" range="-1.05 1.05" class="leg_joint_param"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="left_leg_Link"/>
+        <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="left_leg_Link"/>
+        <body name="left_knee_link" pos="0.0299969 -0.227332 -0.05387">
+          <inertial pos="0.00251814 -0.0947501 0.0266897" quat="0.46239 0.547083 -0.45305 0.530699" mass="0.481886" diaginertia="0.00416749 0.00405668 0.000256928"/>
+          <joint name="left_knee_joint" pos="0 0 0" axis="0 0 1" limited="true" range="-2.09 0" class="leg_joint_param"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="left_knee_link"/>
+          <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="left_knee_link"/>
+          <body name="left_ankle_link" pos="0 -0.210703 0.01537">
+            <inertial pos="0.0107665 -0.0337557 0.0185647" quat="0.908553 0.406568 0.024315 0.0929659" mass="0.152966" diaginertia="0.000228192 0.000184714 0.000107994"/>
+            <joint name="left_ankle_joint" pos="0 0 0" axis="0 0 1" limited="true" range="-0.785 0.785" class="leg_joint_param"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="left_ankle_link"/>
+            <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="left_ankle_link"/>
+            <site name="left_foot_site" pos="0 0 0" size="0.01"/>
+          </body>
+        </body>
+      </body>
+      <body name="right_leg_link" pos="0 -0.0634 -0.03" quat="0.707107 -0.707107 0 0">
+        <inertial pos="0.0149188 0.106758 -0.0292734" quat="0.549478 0.408033 -0.517486 0.513606" mass="0.69421" diaginertia="0.00626842 0.00617262 0.000852461"/>
+        <joint name="right_leg_joint" pos="0 0 0" axis="0 0 -1" limited="true" range="-1.05 1.05" class="leg_joint_param"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="right_leg_link"/>
+        <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="right_leg_link"/>
+        <body name="right_knee_link" pos="0.0299965 0.228032 -0.053">
+          <inertial pos="0.00251067 0.0938939 0.0258415" quat="0.529583 0.452083 -0.548201 0.463291" mass="0.482446" diaginertia="0.00417607 0.00406523 0.000257004"/>
+          <joint name="right_knee_joint" pos="0 0 0" axis="0 0 -1" limited="true" range="-2.09 0" class="leg_joint_param"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="right_knee_link"/>
+          <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="right_knee_link"/>
+          <body name="right_ankle_link" pos="0 0.210003 0.0145">
+            <inertial pos="0.011175 0.035219 0.0181014" quat="0.908731 0.404796 -0.0242651 -0.0987896" mass="0.164634" diaginertia="0.000241705 0.000196548 0.000115047"/>
+            <joint name="right_ankle_joint" pos="0 0 0" axis="0 0 -1" limited="true" range="-0.785 0.785" class="leg_joint_param"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="right_ankle_link"/>
+            <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="right_ankle_link"/>
+            <site name="right_foot_site" pos="0 0 0" size="0.01"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="left_leg_joint" joint="left_leg_joint" gear="1" ctrllimited="true" ctrlrange="-25 25"/>
+    <motor name="left_knee_joint" joint="left_knee_joint" gear="1" ctrllimited="true" ctrlrange="-40 40"/>
+    <motor name="left_ankle_joint" joint="left_ankle_joint" gear="1" ctrllimited="true" ctrlrange="-27 27"/>
+
+    <motor name="right_leg_joint" joint="right_leg_joint" gear="1" ctrllimited="true" ctrlrange="-25 25"/>
+    <motor name="right_knee_joint" joint="right_knee_joint" gear="1" ctrllimited="true" ctrlrange="-40 40"/>
+    <motor name="right_ankle_joint" joint="right_ankle_joint" gear="1" ctrllimited="true" ctrlrange="-27 27"/>
+  </actuator>
+
+  <sensor>
+      <framequat     name='orientation' objtype='site' noise='0.001' objname='imu'/>
+        <framepos     name='position' objtype='site' noise='0.001' objname='imu'/>
+        <gyro          name='angular-velocity'    site='imu' noise='0.005' cutoff='34.9'/>
+        <velocimeter   name='linear-velocity'     site='imu' noise='0.001' cutoff='30'/>
+        <accelerometer name='linear-acceleration' site='imu' noise='0.005' cutoff='157'/>
+        <magnetometer  name='magnetometer'        site='imu'/>
+    <subtreeangmom name="root_angmom" body="base_link"/>
+  </sensor>
+  
+</mujoco>
