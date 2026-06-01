@@ -11,7 +11,14 @@ from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
-from mjlab.sensor import BuiltinSensorCfg, ContactMatch, ContactSensorCfg, ObjRef
+from mjlab.sensor import (
+  BuiltinSensorCfg,
+  ContactMatch,
+  ContactSensorCfg,
+  ObjRef,
+  RingPatternCfg,
+  TerrainHeightSensorCfg,
+)
 from mjlab.tasks.velocity import mdp
 from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 from mjlab.tasks.velocity.velocity_env_cfg import make_velocity_env_cfg
@@ -46,8 +53,17 @@ def _custom_biped_flat_forward_env_cfg(
   cfg.scene.sensors = tuple(
     sensor
     for sensor in (cfg.scene.sensors or ())
-    if sensor.name not in {"terrain_scan", "foot_height_scan"}
+    if sensor.name not in {"terrain_scan"}
   )
+
+  for sensor in cfg.scene.sensors or ():
+    if sensor.name == "foot_height_scan":
+      assert isinstance(sensor, TerrainHeightSensorCfg)
+      sensor.frame = (
+        ObjRef(type="site", name="left_foot_site", entity="robot"),
+        ObjRef(type="site", name="right_foot_site", entity="robot"),
+      )
+      sensor.pattern = RingPatternCfg.single_ring(radius=0.03, num_samples=6)
 
   assert cfg.scene.terrain is not None
   cfg.scene.terrain.terrain_type = "plane"
@@ -134,12 +150,12 @@ def _custom_biped_flat_forward_env_cfg(
 
   cfg.rewards["track_linear_velocity"].weight = 4.0
   cfg.rewards["track_angular_velocity"].weight = 0.25
-  cfg.rewards["body_ang_vel"].weight = -0.01
-  cfg.rewards["angular_momentum"].weight = 0.0
-  cfg.rewards["air_time"].weight = 0.25
+  cfg.rewards["body_ang_vel"].weight = -0.05
+  cfg.rewards["angular_momentum"].weight = -0.02
+  cfg.rewards["air_time"].weight = 0.0
 
   if "action_rate_l2" in cfg.rewards:
-    cfg.rewards["action_rate_l2"].weight = -0.01
+    cfg.rewards["action_rate_l2"].weight = -0.05
 
   if "pose" in cfg.rewards:
     cfg.rewards["pose"].weight = 0.4
@@ -160,11 +176,12 @@ def _custom_biped_flat_forward_env_cfg(
     },
   )
 
-  for reward_name in ["foot_clearance", "foot_swing_height"]:
-    cfg.rewards.pop(reward_name, None)
+  site_names = ("left_foot_site", "right_foot_site")
+  if "foot_clearance" in cfg.rewards:
+    cfg.rewards["foot_clearance"].params["asset_cfg"].site_names = site_names
   if "foot_slip" in cfg.rewards:
     cfg.rewards["foot_slip"].params["asset_cfg"] = SceneEntityCfg(
-      "robot", body_names=("left_ankle_link", "right_ankle_link")
+      "robot", site_names=site_names
     )
 
   cfg.terminations.pop("out_of_terrain_bounds", None)
@@ -192,7 +209,11 @@ def _custom_biped_flat_forward_env_cfg(
   critic_terms.pop("foot_height", None)
 
   if include_actor_base_lin_vel:
-    cfg.curriculum.pop("command_vel", None)
+    cfg.curriculum["command_vel"].params["velocity_stages"] = [
+      {"step": 0, "lin_vel_x": (0.3, 0.5), "ang_vel_z": (0.0, 0.0)},
+      {"step": 5000 * 24, "lin_vel_x": (0.3, 0.8), "ang_vel_z": (0.0, 0.0)},
+      {"step": 10000 * 24, "lin_vel_x": (0.3, 1.0), "ang_vel_z": (0.0, 0.0)},
+    ]
   else:
     actor_terms.pop("base_lin_vel", None)
     actor_terms["joint_pos"].history_length = 4
