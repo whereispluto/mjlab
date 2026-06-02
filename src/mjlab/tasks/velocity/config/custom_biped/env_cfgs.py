@@ -124,7 +124,7 @@ def _custom_biped_flat_forward_env_cfg(
   twist_cmd.rel_forward_envs = 1.0
   twist_cmd.rel_standing_envs = 0.0
   twist_cmd.ranges.heading = None
-  twist_cmd.ranges.lin_vel_x = (0.0, 1.2)
+  twist_cmd.ranges.lin_vel_x = (-0.2, 0.6)
   twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
   twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
@@ -211,8 +211,8 @@ def _custom_biped_flat_forward_env_cfg(
   if include_actor_base_lin_vel:
     cfg.curriculum["command_vel"].params["velocity_stages"] = [
       {"step": 0, "lin_vel_x": (0.0, 0.4), "ang_vel_z": (0.0, 0.0)},
-      {"step": 5000 * 24, "lin_vel_x": (0.2, 0.8), "ang_vel_z": (0.0, 0.0)},
-      {"step": 10000 * 24, "lin_vel_x": (0.4, 1.2), "ang_vel_z": (0.0, 0.0)},
+      {"step": 5000 * 24, "lin_vel_x": (-0.2, 0.2), "ang_vel_z": (0.0, 0.0)},
+      {"step": 10000 * 24, "lin_vel_x": (-0.2, 0.6), "ang_vel_z": (0.0, 0.0)},
     ]
   else:
     actor_terms.pop("base_lin_vel", None)
@@ -225,7 +225,7 @@ def _custom_biped_flat_forward_env_cfg(
       {"step": 5000 * 24, "lin_vel_x": (0.0, 1.0), "ang_vel_z": (0.0, 0.0)},
       {"step": 10000 * 24, "lin_vel_x": (0.0, 1.5), "ang_vel_z": (0.0, 0.0)},
     ]
-    twist_cmd.ranges.lin_vel_x = (0.0, 1.5)
+    twist_cmd.ranges.lin_vel_x = (-0.2, 0.6)
 
   if play:
     cfg.episode_length_s = int(1e9)
@@ -233,7 +233,7 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.events.pop("push_robot", None)
     cfg.terminations.pop("out_of_terrain_bounds", None)
     cfg.curriculum = {}
-    twist_cmd.ranges.lin_vel_x = (0.3, 0.3) # Set to a fixed value for playing
+    twist_cmd.ranges.lin_vel_x = (0.2, 0.2) # Set to a fixed value for playing
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
     twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
