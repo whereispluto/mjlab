@@ -197,7 +197,7 @@ def _custom_biped_flat_forward_env_cfg(
     func=mdp.illegal_contact,
     params={
       "sensor_name": base_ground_cfg.name,
-      "force_threshold": 10.0,
+      "force_threshold": 3.0,
     },
   )
   cfg.curriculum.pop("terrain_levels", None)
