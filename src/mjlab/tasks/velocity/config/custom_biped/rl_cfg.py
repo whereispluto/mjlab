@@ -44,4 +44,5 @@ def custom_biped_ppo_runner_cfg(
     save_interval=50,
     num_steps_per_env=24,
     max_iterations=50_000,
+    clip_actions=1.0,
   )
