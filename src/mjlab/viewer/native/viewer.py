@@ -147,8 +147,10 @@ class NativeMujocoViewer(BaseViewer):
     self._yrange: dict[str, tuple[float, float]] = {}  # Per-term y-range.
     self._scale: dict[str, float] = {}  # Per-term display scale factor.
     self._show_plots: bool = False
-    self._show_debug_vis: bool = True
+    self._show_debug_vis: bool = False
     self._show_all_envs: bool = False
+    self._show_contact_points: bool = True
+    self._show_sites: bool = False
     self._plot_cfg = plot_cfg or PlotCfg()
     self._figures_dirty: bool = False
 
@@ -195,6 +197,7 @@ class NativeMujocoViewer(BaseViewer):
       self.viewer.user_scn.flags[mujoco.mjtRndFlag.mjRND_SHADOW] = 0
 
     self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_SCLINERTIA] = 1
+    self._apply_native_visual_options()
 
     self._setup_camera()
 
@@ -240,7 +243,28 @@ class NativeMujocoViewer(BaseViewer):
         self._stabilize_tracking_camera()
 
       has_visual_dr = bool(sim.expanded_fields & VIEWER_MODEL_FIELDS)
+      self._apply_native_visual_options()
       v.sync(state_only=not has_visual_dr)
+      self._apply_native_visual_options()
+
+  def _apply_native_visual_options(self) -> None:
+    """Apply visualization toggles to both native and auxiliary options."""
+    contact_point = mujoco.mjtVisFlag.mjVIS_CONTACTPOINT
+    contact_force = mujoco.mjtVisFlag.mjVIS_CONTACTFORCE
+    contact_split = mujoco.mjtVisFlag.mjVIS_CONTACTSPLIT
+
+    if self.viewer is not None:
+      viewer_opt = self.viewer.opt
+      viewer_opt.flags[contact_point] = int(self._show_contact_points)
+      viewer_opt.flags[contact_force] = 0
+      viewer_opt.flags[contact_split] = 0
+      viewer_opt.sitegroup[:] = int(self._show_sites)
+
+    if self.vopt is not None:
+      self.vopt.flags[contact_point] = int(self._show_contact_points)
+      self.vopt.flags[contact_force] = 0
+      self.vopt.flags[contact_split] = 0
+      self.vopt.sitegroup[:] = int(self._show_sites)
 
   def _set_status_overlay(self, viewer: mujoco.viewer.Handle) -> None:
     status = self.get_status()
@@ -451,6 +475,7 @@ class NativeMujocoViewer(BaseViewer):
     """Runs on MuJoCo viewer thread; must not touch env/sim directly."""
     from mjlab.viewer.native.keys import (
       KEY_A,
+      KEY_C,
       KEY_COMMA,
       KEY_ENTER,
       KEY_EQUAL,
@@ -459,6 +484,7 @@ class NativeMujocoViewer(BaseViewer):
       KEY_PERIOD,
       KEY_R,
       KEY_RIGHT,
+      KEY_S,
       KEY_SPACE,
     )
 
@@ -480,6 +506,10 @@ class NativeMujocoViewer(BaseViewer):
       self.request_action("TOGGLE_DEBUG_VIS")
     elif key == KEY_A:
       self.request_action("TOGGLE_SHOW_ALL_ENVS")
+    elif key == KEY_C:
+      self.request_action("TOGGLE_CONTACT_POINTS")
+    elif key == KEY_S:
+      self.request_action("TOGGLE_SITES")
     elif key == KEY_RIGHT:
       self.request_single_step()
 
@@ -525,6 +555,22 @@ class NativeMujocoViewer(BaseViewer):
       self._show_all_envs = not self._show_all_envs
       self.log(
         f"[INFO] Show all envs {'enabled' if self._show_all_envs else 'disabled'}",
+        VerbosityLevel.INFO,
+      )
+      return True
+    if action == ViewerAction.TOGGLE_CONTACT_POINTS:
+      self._show_contact_points = not self._show_contact_points
+      self._apply_native_visual_options()
+      self.log(
+        f"[INFO] Contact points {'shown' if self._show_contact_points else 'hidden'}",
+        VerbosityLevel.INFO,
+      )
+      return True
+    if action == ViewerAction.TOGGLE_SITES:
+      self._show_sites = not self._show_sites
+      self._apply_native_visual_options()
+      self.log(
+        f"[INFO] Sites {'shown' if self._show_sites else 'hidden'}",
         VerbosityLevel.INFO,
       )
       return True

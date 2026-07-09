@@ -141,6 +141,8 @@ class ViewerAction(Enum):
   TOGGLE_PLOTS = "toggle_plots"
   TOGGLE_DEBUG_VIS = "toggle_debug_vis"
   TOGGLE_SHOW_ALL_ENVS = "toggle_show_all_envs"
+  TOGGLE_CONTACT_POINTS = "toggle_contact_points"
+  TOGGLE_SITES = "toggle_sites"
   FETCH_CHECKPOINT = "fetch_checkpoint"
   CUSTOM = "custom"
 
