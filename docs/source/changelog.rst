@@ -8,6 +8,10 @@ Upcoming version (not yet released)
 Added
 ^^^^^
 
+- ``train`` now exports the completed W&B run history to
+  ``wandb/curves`` by default, saving one ``history.csv`` plus SVG
+  training curves for numeric metrics. Use ``--no-export-wandb-curves``
+  or ``--wandb-curves-dir`` to customize this behavior.
 - Added a custom 3-DoF biped velocity task template in ``mjlab`` that
   reuses the LearningHumanoidWalking biped MuJoCo asset and provides both
   a baseline policy with base linear velocity observations and a final

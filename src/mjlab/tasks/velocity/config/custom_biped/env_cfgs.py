@@ -253,7 +253,7 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.episode_length_s = int(1e9)
     cfg.observations["actor"].enable_corruption = False
     cfg.events.pop("push_robot", None)
-    cfg.terminations.pop("out_of_terrain_bounds", None)
+    cfg.terminations = {}
     cfg.curriculum = {}
     twist_cmd.ranges.lin_vel_x = (0.3, 0.3)  # Set to a fixed value for playing
     twist_cmd.ranges.lin_vel_y = (0.0, 0.0)

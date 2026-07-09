@@ -18,7 +18,11 @@ from mjlab.tasks.tracking.mdp import MotionCommandCfg
 from mjlab.utils.gpu import select_gpus
 from mjlab.utils.os import dump_yaml, get_checkpoint_path, get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
-from mjlab.utils.wandb import add_wandb_tags
+from mjlab.utils.wandb import (
+  add_wandb_tags,
+  export_wandb_run_curves,
+  get_current_wandb_run_info,
+)
 from mjlab.utils.wrappers import VideoRecorder
 
 
@@ -37,6 +41,10 @@ class TrainConfig:
   wandb_run_path: str | None = None
   wandb_checkpoint_name: str | None = None
   """Optional checkpoint name within the W&B run to load (e.g. 'model_4000.pt')."""
+  export_wandb_curves: bool = True
+  """Whether to save W&B history CSV and SVG training curves after training."""
+  wandb_curves_dir: str = "wandb/curves"
+  """Directory where exported W&B training curves are saved."""
   gpu_ids: list[int] | Literal["all"] | None = field(default_factory=lambda: [0])
 
   @staticmethod
@@ -171,6 +179,23 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
   if resume_path is not None:
     print(f"[INFO]: Loading model checkpoint from: {resume_path}")
     runner.load(str(resume_path))
+
+  if rank == 0 and cfg.agent.logger == "wandb" and cfg.export_wandb_curves:
+    stop_logging_writer = runner.logger.stop_logging_writer
+
+    def stop_logging_writer_and_export_curves() -> None:
+      run_info = get_current_wandb_run_info()
+      stop_logging_writer()
+      if run_info is None:
+        return
+      try:
+        curves_dir = export_wandb_run_curves(run_info, cfg.wandb_curves_dir)
+        if curves_dir is not None:
+          print(f"[INFO] Saved W&B training curves to: {curves_dir.resolve()}")
+      except Exception as e:
+        print(f"[WARN] W&B curve export failed (training already completed): {e}")
+
+    runner.logger.stop_logging_writer = stop_logging_writer_and_export_curves
 
   runner.learn(
     num_learning_iterations=cfg.agent.max_iterations, init_at_random_ep_len=True
