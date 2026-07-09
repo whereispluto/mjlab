@@ -145,7 +145,7 @@ def _custom_biped_flat_forward_env_cfg(
   twist_cmd.rel_forward_envs = 1.0
   twist_cmd.rel_standing_envs = 0.0
   twist_cmd.ranges.heading = None
-  twist_cmd.ranges.lin_vel_x = (-0.2, 0.6)
+  twist_cmd.ranges.lin_vel_x = (0, 0.2)
   twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
   twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 

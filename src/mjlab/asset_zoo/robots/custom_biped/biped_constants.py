@@ -67,8 +67,11 @@ CUSTOM_BIPED_ACTUATOR_ANKLE = BuiltinPositionActuatorCfg(
 )
 
 CUSTOM_BIPED_HOME_KEYFRAME = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 0.02),
+  pos=(0.0, 0.0, 0.53),
   joint_pos={
+    "base_x": 0.0,
+    "base_z": 0.0,
+    "base_pitch": 0.0,
     "left_leg_joint": 0.19,
     "left_knee_joint": -0.38,
     "left_ankle_joint": -0.19,
