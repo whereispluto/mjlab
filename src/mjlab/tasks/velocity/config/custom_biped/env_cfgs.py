@@ -36,6 +36,7 @@ def _custom_biped_flat_forward_env_cfg(
   cfg.sim.nconmax = None
 
   cfg.scene.entities = {"robot": get_custom_biped_robot_cfg()}
+  cfg.events["reset_base"].params["pose_range"]["z"] = (0.0, 0.02)
   # Fixed-base custom biped cannot accept root velocity writes; disable push event.
   cfg.events.pop("push_robot", None)
   # Provide IMU sensor aliases expected by the velocity task observations.
@@ -104,10 +105,30 @@ def _custom_biped_flat_forward_env_cfg(
     num_slots=1,
     history_length=4,
   )
+  fall_ground_cfg = ContactSensorCfg(
+    name="fall_ground_touch",
+    primary=ContactMatch(
+      mode="body",
+      pattern=(
+        "base_link",
+        "left_leg_Link",
+        "left_knee_link",
+        "right_leg_link",
+        "right_knee_link",
+      ),
+      entity="robot",
+    ),
+    secondary=ContactMatch(mode="body", pattern="terrain"),
+    fields=("found", "force"),
+    reduce="none",
+    num_slots=1,
+    history_length=4,
+  )
   cfg.scene.sensors = (cfg.scene.sensors or ()) + (
     feet_ground_cfg,
     self_collision_cfg,
     base_ground_cfg,
+    fall_ground_cfg,
   )
 
   joint_pos_action = cfg.actions["joint_pos"]
@@ -148,20 +169,21 @@ def _custom_biped_flat_forward_env_cfg(
     r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.05,
   }
 
-  cfg.rewards["track_linear_velocity"].weight = 4.0
+  cfg.rewards["track_linear_velocity"].weight = 6.0
+  cfg.rewards["track_linear_velocity"].params["std"] = 0.25
   cfg.rewards["track_angular_velocity"].weight = 0.25
   cfg.rewards["body_ang_vel"].weight = -0.05
   cfg.rewards["angular_momentum"].weight = -0.02
-  cfg.rewards["air_time"].weight = 0.15
+  cfg.rewards["air_time"].weight = 0.3
   cfg.rewards["air_time"].params["command_threshold"] = 0.05
 
   if "action_rate_l2" in cfg.rewards:
     cfg.rewards["action_rate_l2"].weight = -0.02
 
   if "pose" in cfg.rewards:
-    cfg.rewards["pose"].weight = 0.3
+    cfg.rewards["pose"].weight = 0.1
   if "upright" in cfg.rewards:
-    cfg.rewards["upright"].weight = 0.7
+    cfg.rewards["upright"].weight = 0.5
 
   cfg.rewards["self_collisions"] = RewardTermCfg(
     func=mdp.self_collision_cost,
@@ -186,19 +208,18 @@ def _custom_biped_flat_forward_env_cfg(
     )
 
   cfg.terminations.pop("out_of_terrain_bounds", None)
-  cfg.terminations["fell_over"].params["limit_angle"] = math.radians(75.0)
-  # Terminate when the base drops below 0.30 m (nominal height ≈ 0.53 m),
-  # which gives the robot more time to recover from minor collapses.
+  cfg.terminations["fell_over"].params["limit_angle"] = math.radians(50.0)
+  # Terminate when the slide-root drops below the nominal foot-ground offset.
   cfg.terminations["base_too_low"] = TerminationTermCfg(
     func=mdp.root_height_below_minimum,
-    params={"minimum_height": 0.30},
+    params={"minimum_height": 0.01},
   )
-  # Terminate when the base touches the ground.
-  cfg.terminations["base_contact"] = TerminationTermCfg(
+  # Terminate when non-foot links touch the ground.
+  cfg.terminations["fall_contact"] = TerminationTermCfg(
     func=mdp.illegal_contact,
     params={
-      "sensor_name": base_ground_cfg.name,
-      "force_threshold": 3.0,
+      "sensor_name": fall_ground_cfg.name,
+      "force_threshold": 5.0,
     },
   )
   cfg.curriculum.pop("terrain_levels", None)

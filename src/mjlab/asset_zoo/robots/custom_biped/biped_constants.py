@@ -42,9 +42,7 @@ STIFFNESS_KNEE = KNEE_ACTUATOR.reflected_inertia * NATURAL_FREQ**2
 DAMPING_KNEE = 2.0 * DAMPING_RATIO * KNEE_ACTUATOR.reflected_inertia * NATURAL_FREQ
 
 STIFFNESS_ANKLE = ANKLE_ACTUATOR.reflected_inertia * NATURAL_FREQ**2
-DAMPING_ANKLE = (
-  2.0 * DAMPING_RATIO * ANKLE_ACTUATOR.reflected_inertia * NATURAL_FREQ
-)
+DAMPING_ANKLE = 2.0 * DAMPING_RATIO * ANKLE_ACTUATOR.reflected_inertia * NATURAL_FREQ
 
 CUSTOM_BIPED_ACTUATOR_LEG = BuiltinPositionActuatorCfg(
   target_names_expr=(".*_leg_joint",),
@@ -69,7 +67,7 @@ CUSTOM_BIPED_ACTUATOR_ANKLE = BuiltinPositionActuatorCfg(
 )
 
 CUSTOM_BIPED_HOME_KEYFRAME = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 0.53),
+  pos=(0.0, 0.0, 0.02),
   joint_pos={
     "left_leg_joint": 0.19,
     "left_knee_joint": -0.38,
