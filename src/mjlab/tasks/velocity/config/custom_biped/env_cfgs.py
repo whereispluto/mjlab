@@ -36,7 +36,7 @@ def _custom_biped_flat_forward_env_cfg(
   cfg.sim.nconmax = None
 
   cfg.scene.entities = {"robot": get_custom_biped_robot_cfg()}
-  cfg.events["reset_base"].params["pose_range"]["z"] = (0.0, 0.02)
+  cfg.events["reset_base"].params["pose_range"]["z"] = (0.0, 0.0)
   # Fixed-base custom biped cannot accept root velocity writes; disable push event.
   cfg.events.pop("push_robot", None)
   # Provide IMU sensor aliases expected by the velocity task observations.
@@ -242,12 +242,17 @@ def _custom_biped_flat_forward_env_cfg(
     actor_terms["joint_pos"].flatten_history_dim = True
     actor_terms["joint_vel"].history_length = 4
     actor_terms["joint_vel"].flatten_history_dim = True
+    cfg.rewards["track_linear_velocity"].params["std"] = 0.15
+    cfg.rewards["action_rate_l2"].weight = -0.002
+    cfg.rewards["air_time"].weight = 0.2
+    cfg.rewards["foot_clearance"].weight = -0.5
+    cfg.rewards["foot_swing_height"].weight = -0.05
     cfg.curriculum["command_vel"].params["velocity_stages"] = [
-      {"step": 0, "lin_vel_x": (0.0, 0.5), "ang_vel_z": (0.0, 0.0)},
-      {"step": 5000 * 24, "lin_vel_x": (0.0, 1.0), "ang_vel_z": (0.0, 0.0)},
-      {"step": 10000 * 24, "lin_vel_x": (0.0, 1.5), "ang_vel_z": (0.0, 0.0)},
+      {"step": 0, "lin_vel_x": (0.1, 0.2), "ang_vel_z": (0.0, 0.0)},
+      {"step": 5000 * 24, "lin_vel_x": (0.1, 0.3), "ang_vel_z": (0.0, 0.0)},
+      {"step": 10000 * 24, "lin_vel_x": (0.1, 0.4), "ang_vel_z": (0.0, 0.0)},
     ]
-    twist_cmd.ranges.lin_vel_x = (-0.2, 0.6)
+    twist_cmd.ranges.lin_vel_x = (0.1, 0.4)
 
   if play:
     cfg.episode_length_s = int(1e9)
