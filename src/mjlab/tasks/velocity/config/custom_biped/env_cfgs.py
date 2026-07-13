@@ -142,7 +142,9 @@ def _custom_biped_flat_forward_env_cfg(
   twist_cmd.heading_command = False
   twist_cmd.rel_heading_envs = 0.0
   twist_cmd.rel_world_envs = 0.0
-  twist_cmd.rel_forward_envs = 1.0
+  # The configured ranges are already forward-only. Keep the generic forward-only
+  # sampler disabled because it clamps linear x commands to at least 0.3 m/s.
+  twist_cmd.rel_forward_envs = 0.0
   twist_cmd.rel_standing_envs = 0.0
   twist_cmd.ranges.heading = None
   twist_cmd.ranges.lin_vel_x = (0, 0.2)

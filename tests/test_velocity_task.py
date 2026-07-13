@@ -51,6 +51,20 @@ def test_velocity_tasks_have_twist_command(velocity_task_ids: list[str]) -> None
     )
 
 
+def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
+  """Custom biped curriculum should preserve its initial 0.1-0.2 m/s range."""
+  task_id = "Mjlab-Velocity-Flat-Forward-Custom-Biped-NoLinVel"
+  cfg = load_env_cfg(task_id)
+
+  twist_cmd = cfg.commands["twist"]
+  assert isinstance(twist_cmd, UniformVelocityCommandCfg)
+  assert twist_cmd.rel_forward_envs == 0.0
+
+  command_curriculum = cfg.curriculum["command_vel"]
+  first_stage = command_curriculum.params["velocity_stages"][0]
+  assert first_stage["lin_vel_x"] == (0.1, 0.2)
+
+
 def test_g1_velocity_has_required_sensors(g1_velocity_task_ids: list[str]) -> None:
   """G1 velocity tasks should have feet/ground and self collision sensors."""
   for task_id in g1_velocity_task_ids:

@@ -61,7 +61,9 @@ Changed
 - Custom biped no-linear-velocity training now starts with a conservative
   nonzero forward-speed curriculum, disables reset height perturbation, strengthens
   forward-velocity tracking and action smoothing, and disables the air-time reward
-  that could incentivize in-place foot shaking.
+  that could incentivize in-place foot shaking. Its forward-only commands now
+  preserve the curriculum's initial 0.1--0.2 m/s range instead of being clamped to
+  0.3 m/s.
 - Bumped ``mujoco`` to 3.8 and ``mujoco-warp`` to 3.8.0. The ``multiccd``
   enable flag was removed in mujoco 3.8 (it became default-on), so configs
   that listed ``"multiccd"`` in ``MujocoCfg.enableflags`` need to drop it.
