@@ -87,16 +87,6 @@
     </body>
   </worldbody>
 
-  <actuator>
-    <motor name="left_leg_joint" joint="left_leg_joint" gear="1" ctrllimited="true" ctrlrange="-25 25"/>
-    <motor name="left_knee_joint" joint="left_knee_joint" gear="1" ctrllimited="true" ctrlrange="-40 40"/>
-    <motor name="left_ankle_joint" joint="left_ankle_joint" gear="1" ctrllimited="true" ctrlrange="-27 27"/>
-
-    <motor name="right_leg_joint" joint="right_leg_joint" gear="1" ctrllimited="true" ctrlrange="-25 25"/>
-    <motor name="right_knee_joint" joint="right_knee_joint" gear="1" ctrllimited="true" ctrlrange="-40 40"/>
-    <motor name="right_ankle_joint" joint="right_ankle_joint" gear="1" ctrllimited="true" ctrlrange="-27 27"/>
-  </actuator>
-
   <sensor>
       <framequat     name='orientation' objtype='site' noise='0.001' objname='imu'/>
         <framepos     name='position' objtype='site' noise='0.001' objname='imu'/>
