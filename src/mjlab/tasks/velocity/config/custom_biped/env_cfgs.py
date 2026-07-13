@@ -242,9 +242,10 @@ def _custom_biped_flat_forward_env_cfg(
     actor_terms["joint_pos"].flatten_history_dim = True
     actor_terms["joint_vel"].history_length = 4
     actor_terms["joint_vel"].flatten_history_dim = True
-    cfg.rewards["track_linear_velocity"].params["std"] = 0.15
-    cfg.rewards["action_rate_l2"].weight = -0.002
-    cfg.rewards["air_time"].weight = 0.2
+    cfg.rewards["track_linear_velocity"].weight = 8.0
+    cfg.rewards["track_linear_velocity"].params["std"] = 0.2
+    cfg.rewards["action_rate_l2"].weight = -0.01
+    cfg.rewards["air_time"].weight = 0.0
     cfg.rewards["foot_clearance"].weight = -0.5
     cfg.rewards["foot_swing_height"].weight = -0.05
     cfg.curriculum["command_vel"].params["velocity_stages"] = [
