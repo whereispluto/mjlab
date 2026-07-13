@@ -59,10 +59,14 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   twist_cmd = cfg.commands["twist"]
   assert isinstance(twist_cmd, UniformVelocityCommandCfg)
   assert twist_cmd.rel_forward_envs == 0.0
+  assert twist_cmd.forward_velocity_joint_name == "base_x"
 
   command_curriculum = cfg.curriculum["command_vel"]
   first_stage = command_curriculum.params["velocity_stages"][0]
   assert first_stage["lin_vel_x"] == (0.1, 0.2)
+
+  track_reward = cfg.rewards["track_linear_velocity"]
+  assert track_reward.params["asset_cfg"].joint_names == ("base_x", "base_z")
 
 
 def test_g1_velocity_has_required_sensors(g1_velocity_task_ids: list[str]) -> None:

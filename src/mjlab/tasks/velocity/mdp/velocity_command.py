@@ -34,6 +34,15 @@ class UniformVelocityCommand(CommandTerm):
       raise ValueError("ranges.heading is set but heading_command=False.")
 
     self.robot: Entity = env.scene[cfg.entity_name]
+    self._forward_velocity_joint_id: int | None = None
+    if self.cfg.forward_velocity_joint_name is not None:
+      joint_ids, _ = self.robot.find_joints((self.cfg.forward_velocity_joint_name,))
+      if len(joint_ids) != 1:
+        raise ValueError(
+          "forward_velocity_joint_name must resolve to exactly one joint, got "
+          f"{len(joint_ids)} for '{self.cfg.forward_velocity_joint_name}'."
+        )
+      self._forward_velocity_joint_id = joint_ids[0]
 
     self.vel_command_b = torch.zeros(self.num_envs, 3, device=self.device)
     self.vel_command_w = torch.zeros(self.num_envs, 3, device=self.device)
@@ -61,9 +70,16 @@ class UniformVelocityCommand(CommandTerm):
   def _update_metrics(self) -> None:
     max_command_time = self.cfg.resampling_time_range[1]
     max_command_step = max_command_time / self._env.step_dt
+    actual_lin_vel_xy = self.robot.data.root_link_lin_vel_b[:, :2]
+    if self._forward_velocity_joint_id is not None:
+      actual_lin_vel_xy = torch.zeros_like(self.vel_command_b[:, :2])
+      actual_lin_vel_xy[:, 0] = self.robot.data.joint_vel[
+        :, self._forward_velocity_joint_id
+      ]
     self.metrics["error_vel_xy"] += (
       torch.norm(
-        self.vel_command_b[:, :2] - self.robot.data.root_link_lin_vel_b[:, :2], dim=-1
+        self.vel_command_b[:, :2] - actual_lin_vel_xy,
+        dim=-1,
       )
       / max_command_step
     )
@@ -217,7 +233,11 @@ class UniformVelocityCommand(CommandTerm):
     base_pos_ws = self.robot.data.root_link_pos_w.cpu().numpy()
     base_quat_w = self.robot.data.root_link_quat_w
     base_mat_ws = matrix_from_quat(base_quat_w).cpu().numpy()
-    lin_vel_bs = self.robot.data.root_link_lin_vel_b.cpu().numpy()
+    lin_vel_b = self.robot.data.root_link_lin_vel_b
+    if self._forward_velocity_joint_id is not None:
+      lin_vel_b = lin_vel_b.clone()
+      lin_vel_b[:, 0] = self.robot.data.joint_vel[:, self._forward_velocity_joint_id]
+    lin_vel_bs = lin_vel_b.cpu().numpy()
     ang_vel_bs = self.robot.data.root_link_ang_vel_b.cpu().numpy()
 
     scale = self.cfg.viz.scale
@@ -280,6 +300,13 @@ class UniformVelocityCommand(CommandTerm):
 @dataclass(kw_only=True)
 class UniformVelocityCommandCfg(CommandTermCfg):
   entity_name: str
+  forward_velocity_joint_name: str | None = None
+  """Optional joint whose velocity represents forward base motion.
+
+  This supports planar models whose base translation is represented by a slide joint
+  instead of a free joint. When set, command metrics use this joint for linear x
+  velocity and assume zero lateral velocity.
+  """
   heading_command: bool = False
   heading_control_stiffness: float = 1.0
   rel_standing_envs: float = 0.0

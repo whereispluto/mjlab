@@ -139,6 +139,7 @@ def _custom_biped_flat_forward_env_cfg(
 
   twist_cmd = cfg.commands["twist"]
   assert isinstance(twist_cmd, UniformVelocityCommandCfg)
+  twist_cmd.forward_velocity_joint_name = "base_x"
   twist_cmd.heading_command = False
   twist_cmd.rel_heading_envs = 0.0
   twist_cmd.rel_world_envs = 0.0
@@ -244,12 +245,30 @@ def _custom_biped_flat_forward_env_cfg(
     actor_terms["joint_pos"].flatten_history_dim = True
     actor_terms["joint_vel"].history_length = 4
     actor_terms["joint_vel"].flatten_history_dim = True
+    cfg.rewards["track_linear_velocity"].func = mdp.track_planar_joint_velocity
     cfg.rewards["track_linear_velocity"].weight = 8.0
     cfg.rewards["track_linear_velocity"].params["std"] = 0.2
-    cfg.rewards["action_rate_l2"].weight = -0.01
-    cfg.rewards["air_time"].weight = 0.0
-    cfg.rewards["foot_clearance"].weight = -0.5
-    cfg.rewards["foot_swing_height"].weight = -0.05
+    cfg.rewards["track_linear_velocity"].params["asset_cfg"] = SceneEntityCfg(
+      "robot",
+      joint_names=("base_x", "base_z"),
+      preserve_order=True,
+    )
+    cfg.rewards["forward_velocity"] = RewardTermCfg(
+      func=mdp.forward_velocity,
+      weight=4.0,
+      params={
+        "command_name": "twist",
+        "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
+      },
+    )
+    cfg.rewards["action_rate_l2"].weight = -0.003
+    cfg.rewards["air_time"].weight = 0.1
+    cfg.rewards["air_time"].params["threshold_min"] = 0.1
+    cfg.rewards["air_time"].params["threshold_max"] = 0.4
+    cfg.rewards["foot_clearance"].weight = -0.2
+    cfg.rewards["foot_clearance"].params["target_height"] = 0.06
+    cfg.rewards["foot_swing_height"].weight = -0.15
+    cfg.rewards["foot_swing_height"].params["target_height"] = 0.06
     cfg.curriculum["command_vel"].params["velocity_stages"] = [
       {"step": 0, "lin_vel_x": (0.1, 0.2), "ang_vel_z": (0.0, 0.0)},
       {"step": 5000 * 24, "lin_vel_x": (0.1, 0.3), "ang_vel_z": (0.0, 0.0)},

@@ -44,6 +44,49 @@ def track_linear_velocity(
   return torch.exp(-lin_vel_error / std**2)
 
 
+def track_planar_joint_velocity(
+  env: ManagerBasedRlEnv,
+  std: float,
+  command_name: str,
+  asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+  """Track forward velocity for a planar base represented by x and z joints."""
+  asset: Entity = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  planar_velocity = asset.data.joint_vel[:, asset_cfg.joint_ids]
+  assert planar_velocity.shape[1] == 2, "Expected ordered base x and z joints."
+  x_error = torch.square(command[:, 0] - planar_velocity[:, 0])
+  y_error = torch.square(command[:, 1])
+  z_error = torch.square(planar_velocity[:, 1])
+  return torch.exp(-(x_error + y_error + z_error) / std**2)
+
+
+def forward_velocity(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward forward progress as a fraction of the commanded forward speed.
+
+  This term is intended for forward-only tasks. Unlike the exponential tracking
+  reward, it retains a constant learning gradient between zero and the target speed.
+  Backward motion receives no reward and overspeeding is capped at one.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  target_speed = command[:, 0].clamp(min=0.05)
+  if asset_cfg.joint_names is None:
+    actual_speed = asset.data.root_link_lin_vel_b[:, 0]
+  else:
+    joint_velocity = asset.data.joint_vel[:, asset_cfg.joint_ids]
+    assert joint_velocity.shape[1] == 1, "Expected one forward-velocity joint."
+    actual_speed = joint_velocity[:, 0]
+  env.extras["log"]["Metrics/forward_velocity_mean"] = torch.mean(actual_speed)
+  return torch.clamp(actual_speed / target_speed, min=0.0, max=1.0)
+
+
 def track_angular_velocity(
   env: ManagerBasedRlEnv,
   std: float,
@@ -214,18 +257,21 @@ def feet_air_time(
   command_name: str | None = None,
   command_threshold: float = 0.5,
 ) -> torch.Tensor:
-  """Reward feet air time."""
+  """Reward a bounded swing duration once when each foot lands."""
   sensor: ContactSensor = env.scene[sensor_name]
   sensor_data = sensor.data
-  current_air_time = sensor_data.current_air_time
-  assert current_air_time is not None
-  in_range = (current_air_time > threshold_min) & (current_air_time < threshold_max)
-  reward = torch.sum(in_range.float(), dim=1)
-  in_air = current_air_time > 0
-  num_in_air = torch.sum(in_air.float())
-  mean_air_time = torch.sum(current_air_time * in_air.float()) / torch.clamp(
-    num_in_air, min=1
+  last_air_time = sensor_data.last_air_time
+  assert last_air_time is not None
+  first_contact = sensor.compute_first_contact(dt=env.step_dt)
+  swing_duration = torch.clamp(
+    last_air_time - threshold_min,
+    min=0.0,
+    max=threshold_max - threshold_min,
   )
+  reward = torch.sum(swing_duration * first_contact.float(), dim=1)
+  num_landings = torch.sum(first_contact.float())
+  air_time_at_landing = last_air_time * first_contact.float()
+  mean_air_time = torch.sum(air_time_at_landing) / torch.clamp(num_landings, min=1)
   env.extras["log"]["Metrics/air_time_mean"] = mean_air_time
   if command_name is not None:
     command = env.command_manager.get_command(command_name)
