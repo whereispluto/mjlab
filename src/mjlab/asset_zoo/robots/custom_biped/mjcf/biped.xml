@@ -38,7 +38,7 @@
   <worldbody>
     <light directional="true" diffuse=".4 .4 .4" specular="0.1 0.1 0.1" pos="0 0 5.0" dir="0 0 -1" castshadow="false"/>
     <light directional="true" diffuse=".6 .6 .6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1"/>
-    <body name="base_link" pos='0 0 0.53'>
+    <body name="base_link" pos='0 0 0'>
       <inertial pos="-0.00197519 -0.000666859 0.00700943" quat="0.0557357 0.705656 0.0465698 0.704822" mass="1.0931" diaginertia="0.00811391 0.00765719 0.0041021"/>
       <joint name="base_x" type="slide" axis="1 0 0" limited="false"/>
       <joint name="base_z" type="slide" axis="0 0 1" limited="false"/>
