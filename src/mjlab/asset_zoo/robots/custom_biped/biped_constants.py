@@ -68,17 +68,17 @@ CUSTOM_BIPED_ACTUATOR_ANKLE = BuiltinPositionActuatorCfg(
 )
 
 CUSTOM_BIPED_HOME_KEYFRAME = EntityCfg.InitialStateCfg(
-  pos=(0.0, 0.0, 0.511),
+  pos=(0.0, 0.0, 0.512),
   joint_pos={
     "base_x": 0.0,
     "base_z": 0.0,
     "base_pitch": math.radians(0.0),
-    "left_leg_joint": math.radians(18),
+    "left_leg_joint": math.radians(19),
     "left_knee_joint": math.radians(-20),
-    "left_ankle_joint": math.radians(2),
-    "right_leg_joint": math.radians(-18),
-    "right_knee_joint": math.radians(-10),
-    "right_ankle_joint": math.radians(27),
+    "left_ankle_joint": math.radians(1),
+    "right_leg_joint": math.radians(-17),
+    "right_knee_joint": math.radians(-9),
+    "right_ankle_joint": math.radians(26),
   },
   joint_vel={".*": 0.0},
 )

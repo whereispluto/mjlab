@@ -1,13 +1,18 @@
 import mujoco
 import pytest
 
-from mjlab.asset_zoo.robots import get_g1_robot_cfg, get_go1_robot_cfg
+from mjlab.asset_zoo.robots import (
+  get_custom_biped_robot_cfg,
+  get_g1_robot_cfg,
+  get_go1_robot_cfg,
+)
 from mjlab.entity import Entity
 
 
 @pytest.mark.parametrize(
   "robot_name,robot_cfg_fn",
   [
+    ("Custom biped", get_custom_biped_robot_cfg),
     ("G1", get_g1_robot_cfg),
     ("GO1", get_go1_robot_cfg),
   ],
