@@ -284,6 +284,123 @@ def feet_air_time(
   return reward
 
 
+class alternating_feet:
+  """Reward alternating single-foot landings and discourage repeated landings."""
+
+  def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
+    del cfg
+    self.last_landing_foot = torch.full(
+      (env.num_envs,), -1, device=env.device, dtype=torch.long
+    )
+    self.step_dt = env.step_dt
+
+  def __call__(
+    self,
+    env: ManagerBasedRlEnv,
+    sensor_name: str,
+    command_name: str,
+    command_threshold: float = 0.05,
+    minimum_air_time: float = 0.08,
+    repeated_landing_penalty: float = 0.2,
+  ) -> torch.Tensor:
+    contact_sensor: ContactSensor = env.scene[sensor_name]
+    first_contact = contact_sensor.compute_first_contact(dt=self.step_dt)
+    assert first_contact.shape[1] == 2, (
+      "alternating_feet requires a contact sensor with exactly two feet"
+    )
+    last_air_time = contact_sensor.data.last_air_time
+    assert last_air_time is not None
+
+    single_landing = torch.sum(first_contact, dim=1) == 1
+    landing_foot = torch.argmax(first_contact.to(torch.int64), dim=1)
+    landing_air_time = torch.gather(
+      last_air_time, dim=1, index=landing_foot.unsqueeze(1)
+    ).squeeze(1)
+    valid_landing = single_landing & (landing_air_time >= minimum_air_time)
+    has_previous_landing = self.last_landing_foot >= 0
+    alternating = (
+      valid_landing & has_previous_landing & (landing_foot != self.last_landing_foot)
+    )
+    repeated = (
+      valid_landing & has_previous_landing & (landing_foot == self.last_landing_foot)
+    )
+
+    reward = alternating.float() - repeated_landing_penalty * repeated.float()
+    command = env.command_manager.get_command(command_name)
+    assert command is not None
+    total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+    active = total_command > command_threshold
+    reward *= active.float()
+
+    update = valid_landing & active
+    self.last_landing_foot = torch.where(update, landing_foot, self.last_landing_foot)
+    env.extras["log"]["Metrics/alternating_landing_rate"] = torch.mean(
+      alternating.float()
+    )
+    return reward
+
+  def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
+    if env_ids is None:
+      env_ids = slice(None)
+    self.last_landing_foot[env_ids] = -1
+
+
+def feet_swing_forward_velocity(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  command_name: str,
+  target_velocity: float,
+  command_threshold: float = 0.05,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward bounded forward velocity of each foot while it is in the air."""
+  assert target_velocity > 0.0, "target_velocity must be positive"
+  asset: Entity = env.scene[asset_cfg.name]
+  contact_sensor: ContactSensor = env.scene[sensor_name]
+  assert contact_sensor.data.found is not None
+  in_air = contact_sensor.data.found == 0
+  foot_velocity_x = asset.data.site_lin_vel_w[:, asset_cfg.site_ids, 0]
+  assert in_air.shape == foot_velocity_x.shape, (
+    "feet_swing_forward_velocity requires one contact slot per foot site"
+  )
+
+  normalized_velocity = torch.clamp(foot_velocity_x / target_velocity, min=0.0, max=1.0)
+  reward = torch.sum(normalized_velocity * in_air.float(), dim=1)
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  active = (total_command > command_threshold).float()
+  reward *= active
+  env.extras["log"]["Metrics/swing_forward_velocity_mean"] = torch.mean(
+    foot_velocity_x * in_air.float()
+  )
+  return reward
+
+
+def both_feet_contact(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  command_name: str,
+  command_threshold: float = 0.05,
+) -> torch.Tensor:
+  """Penalize double support under a motion command to initiate foot lift."""
+  contact_sensor: ContactSensor = env.scene[sensor_name]
+  assert contact_sensor.data.found is not None
+  assert contact_sensor.data.found.shape[1] == 2, (
+    "both_feet_contact requires a contact sensor with exactly two feet"
+  )
+  double_support = torch.all(contact_sensor.data.found > 0, dim=1)
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  active = total_command > command_threshold
+  cost = double_support.float() * active.float()
+  env.extras["log"]["Metrics/double_support_rate"] = torch.mean(double_support.float())
+  return cost
+
+
 def feet_clearance(
   env: ManagerBasedRlEnv,
   target_height: float,

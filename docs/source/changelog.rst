@@ -58,6 +58,9 @@ Added
 Changed
 ^^^^^^^
 
+- Retuned the custom biped no-linear-velocity task to discourage foot dragging
+  and promote alternating forward swing, while preserving its stable asymmetric
+  standing pose.
 - Custom biped no-linear-velocity training now starts with a conservative
   nonzero forward-speed curriculum, disables reset height perturbation, strengthens
   forward-velocity learning, and replaces the per-step air-time reward with a
@@ -101,6 +104,9 @@ Changed
 Fixed
 ^^^^^
 
+- Fixed the custom biped's URDF and MJCF left-leg joint frames, masses, centers
+  of mass, and inertia tensors so they mirror the right leg about the base
+  centerline.
 - Fixed duplicate random seeds across nodes in multi-node training. The
   per-process seed offset in ``scripts/train.py`` now uses the global
   ``RANK`` instead of ``LOCAL_RANK``. Contribution by @bd-pdomanico.

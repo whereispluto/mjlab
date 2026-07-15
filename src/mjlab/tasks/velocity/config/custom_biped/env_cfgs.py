@@ -245,8 +245,15 @@ def _custom_biped_flat_forward_env_cfg(
     actor_terms["joint_pos"].flatten_history_dim = True
     actor_terms["joint_vel"].history_length = 4
     actor_terms["joint_vel"].flatten_history_dim = True
+    cfg.rewards["pose"].weight = 0.03
+    cfg.rewards["pose"].params["std_walking"] = {
+      r".*_leg_joint.*": 0.5,
+      r".*_knee_joint.*": 0.7,
+      r".*_ankle_joint.*": 0.4,
+      r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.1,
+    }
     cfg.rewards["track_linear_velocity"].func = mdp.track_planar_joint_velocity
-    cfg.rewards["track_linear_velocity"].weight = 8.0
+    cfg.rewards["track_linear_velocity"].weight = 4.0
     cfg.rewards["track_linear_velocity"].params["std"] = 0.2
     cfg.rewards["track_linear_velocity"].params["asset_cfg"] = SceneEntityCfg(
       "robot",
@@ -255,20 +262,52 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["forward_velocity"] = RewardTermCfg(
       func=mdp.forward_velocity,
-      weight=4.0,
+      weight=1.5,
       params={
         "command_name": "twist",
         "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
       },
     )
     cfg.rewards["action_rate_l2"].weight = -0.003
-    cfg.rewards["air_time"].weight = 0.1
+    cfg.rewards["air_time"].weight = 0.8
     cfg.rewards["air_time"].params["threshold_min"] = 0.1
     cfg.rewards["air_time"].params["threshold_max"] = 0.4
-    cfg.rewards["foot_clearance"].weight = -0.2
-    cfg.rewards["foot_clearance"].params["target_height"] = 0.06
-    cfg.rewards["foot_swing_height"].weight = -0.15
-    cfg.rewards["foot_swing_height"].params["target_height"] = 0.06
+    cfg.rewards["foot_clearance"].weight = -1.0
+    cfg.rewards["foot_clearance"].params["target_height"] = 0.04
+    cfg.rewards["foot_swing_height"].weight = -0.5
+    cfg.rewards["foot_swing_height"].params["target_height"] = 0.04
+    cfg.rewards["foot_slip"].weight = -0.5
+    cfg.rewards["alternating_feet"] = RewardTermCfg(
+      func=mdp.alternating_feet,
+      weight=0.8,
+      params={
+        "sensor_name": feet_ground_cfg.name,
+        "command_name": "twist",
+        "command_threshold": 0.05,
+        "minimum_air_time": 0.08,
+        "repeated_landing_penalty": 0.2,
+      },
+    )
+    cfg.rewards["swing_forward_velocity"] = RewardTermCfg(
+      func=mdp.feet_swing_forward_velocity,
+      weight=0.3,
+      params={
+        "sensor_name": feet_ground_cfg.name,
+        "command_name": "twist",
+        "command_threshold": 0.05,
+        "target_velocity": 0.3,
+        "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
+      },
+    )
+    cfg.rewards["both_feet_contact"] = RewardTermCfg(
+      func=mdp.both_feet_contact,
+      weight=-0.2,
+      params={
+        "sensor_name": feet_ground_cfg.name,
+        "command_name": "twist",
+        "command_threshold": 0.05,
+      },
+    )
     cfg.curriculum["command_vel"].params["velocity_stages"] = [
       {"step": 0, "lin_vel_x": (0.1, 0.2), "ang_vel_z": (0.0, 0.0)},
       {"step": 5000 * 24, "lin_vel_x": (0.1, 0.3), "ang_vel_z": (0.0, 0.0)},

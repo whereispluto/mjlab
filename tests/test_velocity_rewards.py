@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock, PropertyMock
 
 import torch
@@ -10,8 +12,16 @@ import torch
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import RayCastData, RayCastSensor
-from mjlab.tasks.velocity.mdp.rewards import upright
+from mjlab.tasks.velocity.mdp.rewards import (
+  alternating_feet,
+  both_feet_contact,
+  feet_swing_forward_velocity,
+  upright,
+)
 from mjlab.utils.lab_api.math import quat_from_euler_xyz
+
+if TYPE_CHECKING:
+  from mjlab.envs import ManagerBasedRlEnv
 
 
 def _identity_quat(B: int) -> torch.Tensor:
@@ -188,3 +198,155 @@ def test_batch_consistency():
   assert r[1].item() > 0.99
   assert r[2].item() < 0.7
   assert r[3].item() > 0.99
+
+
+def test_alternating_feet_rewards_only_opposite_single_landings():
+  """Alternation is rewarded, repeated landings are penalized, and pairs ignored."""
+  contact_sensor = MagicMock()
+  contact_sensor.data.last_air_time = torch.full((3, 2), 0.15)
+  contact_sensor.compute_first_contact.side_effect = (
+    torch.tensor([[True, False], [False, True], [True, False]]),
+    torch.tensor([[False, True], [False, True], [True, True]]),
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 3)
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      num_envs=3,
+      device="cpu",
+      step_dt=0.02,
+      scene={"feet": contact_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  reward = alternating_feet(MagicMock(spec=RewardTermCfg), env)
+
+  first = reward(env, "feet", "twist", repeated_landing_penalty=0.2)
+  second = reward(env, "feet", "twist", repeated_landing_penalty=0.2)
+
+  torch.testing.assert_close(first, torch.zeros(3))
+  torch.testing.assert_close(second, torch.tensor([1.0, -0.2, 0.0]))
+  torch.testing.assert_close(reward.last_landing_foot, torch.tensor([1, 1, 0]))
+
+
+def test_alternating_feet_reset_clears_selected_history():
+  """Reset environments should not inherit a landing from the prior episode."""
+  contact_sensor = MagicMock()
+  contact_sensor.data.last_air_time = torch.full((2, 2), 0.15)
+  contact_sensor.compute_first_contact.side_effect = (
+    torch.tensor([[True, False], [False, True]]),
+    torch.tensor([[False, True], [True, False]]),
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 2)
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      num_envs=2,
+      device="cpu",
+      step_dt=0.02,
+      scene={"feet": contact_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  reward = alternating_feet(MagicMock(spec=RewardTermCfg), env)
+  reward(env, "feet", "twist")
+  reward.reset(torch.tensor([0]))
+
+  result = reward(env, "feet", "twist")
+
+  torch.testing.assert_close(result, torch.tensor([0.0, 1.0]))
+
+
+def test_alternating_feet_ignores_contact_jitter_after_short_air_time():
+  """A rapid contact toggle should not count as a gait-cycle landing."""
+  contact_sensor = MagicMock()
+  contact_sensor.data.last_air_time = torch.tensor([[0.15, 0.15]])
+  contact_sensor.compute_first_contact.side_effect = (
+    torch.tensor([[True, False]]),
+    torch.tensor([[False, True]]),
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]])
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      num_envs=1,
+      device="cpu",
+      step_dt=0.02,
+      scene={"feet": contact_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  reward = alternating_feet(MagicMock(spec=RewardTermCfg), env)
+  reward(env, "feet", "twist", minimum_air_time=0.08)
+  contact_sensor.data.last_air_time = torch.tensor([[0.15, 0.03]])
+
+  result = reward(env, "feet", "twist", minimum_air_time=0.08)
+
+  torch.testing.assert_close(result, torch.zeros(1))
+  torch.testing.assert_close(reward.last_landing_foot, torch.tensor([0]))
+
+
+def test_feet_swing_forward_velocity_is_bounded_and_command_gated():
+  """Only airborne, forward-moving feet under a motion command earn reward."""
+  contact_sensor = SimpleNamespace(
+    data=SimpleNamespace(found=torch.tensor([[0, 1], [0, 0]]))
+  )
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_lin_vel_w=torch.tensor(
+        [[[0.15, 0.0, 0.0], [0.4, 0.0, 0.0]], [[-0.2, 0.0, 0.0], [0.6, 0.0, 0.0]]]
+      )
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor(
+    [[0.2, 0.0, 0.0], [0.0, 0.0, 0.0]]
+  )
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      scene={"robot": asset, "feet": contact_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  result = feet_swing_forward_velocity(
+    env,
+    sensor_name="feet",
+    command_name="twist",
+    target_velocity=0.3,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([0.5, 0.0]))
+
+
+def test_both_feet_contact_is_command_gated():
+  """Double support is penalized only while a motion command is active."""
+  contact_sensor = SimpleNamespace(
+    data=SimpleNamespace(found=torch.tensor([[1, 1], [1, 0], [1, 1]]))
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor(
+    [[0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.0, 0.0, 0.0]]
+  )
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      scene={"feet": contact_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+
+  result = both_feet_contact(env, sensor_name="feet", command_name="twist")
+
+  torch.testing.assert_close(result, torch.tensor([1.0, 0.0, 0.0]))

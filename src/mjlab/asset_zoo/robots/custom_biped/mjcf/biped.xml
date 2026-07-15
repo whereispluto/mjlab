@@ -47,17 +47,17 @@
       <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="base_link"/>
       <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="base_link"/>
       <body name="left_leg_Link" pos="0 0.0634 -0.03" quat="0.707107 0.707107 0 0">
-        <inertial pos="0.013819 -0.110972 -0.0298055" quat="0.472452 0.484545 -0.447409 0.584663" mass="0.645783" diaginertia="0.00591914 0.00575351 0.000775852"/>
+        <inertial pos="0.0149188 -0.106758 -0.0292734" quat="0.51360603 -0.51748603 0.408033023 0.549478032" mass="0.69421" diaginertia="0.00626842 0.00617262 0.000852461"/>
         <joint name="left_leg_joint" pos="0 0 0" axis="0 0 1" limited="true" range="-1.05 1.05" class="leg_joint_param"/>
         <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="left_leg_Link"/>
         <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="left_leg_Link"/>
-        <body name="left_knee_link" pos="0.0299969 -0.227332 -0.05387">
-          <inertial pos="0.00251814 -0.0947501 0.0266897" quat="0.46239 0.547083 -0.45305 0.530699" mass="0.481886" diaginertia="0.00416749 0.00405668 0.000256928"/>
+        <body name="left_knee_link" pos="0.0299965 -0.228032 -0.053">
+          <inertial pos="0.00251067 -0.0938939 0.0258415" quat="0.463290982 -0.548200978 0.452082982 0.529582979" mass="0.482446" diaginertia="0.00417607 0.00406523 0.000257004"/>
           <joint name="left_knee_joint" pos="0 0 0" axis="0 0 1" limited="true" range="-2.09 0" class="leg_joint_param"/>
           <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="left_knee_link"/>
           <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="left_knee_link"/>
-          <body name="left_ankle_link" pos="0 -0.210703 0.01537">
-            <inertial pos="0.0107665 -0.0337557 0.0185647" quat="0.908553 0.406568 0.024315 0.0929659" mass="0.152966" diaginertia="0.000228192 0.000184714 0.000107994"/>
+          <body name="left_ankle_link" pos="0 -0.210003 0.0145">
+            <inertial pos="0.011175 -0.035219 0.0181014" quat="0.0987895994 0.0242650999 -0.404795998 -0.908730994" mass="0.164634" diaginertia="0.000241705 0.000196548 0.000115047"/>
             <joint name="left_ankle_joint" pos="0 0 0" axis="0 0 1" limited="true" range="-0.785 0.785" class="leg_joint_param"/>
             <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="0.776471 0.756863 0.737255 1" mesh="left_ankle_link"/>
             <geom type="mesh" rgba="0.776471 0.756863 0.737255 1" mesh="left_ankle_link"/>
