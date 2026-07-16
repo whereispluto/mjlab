@@ -301,8 +301,14 @@ class alternating_feet:
     command_name: str,
     command_threshold: float = 0.05,
     minimum_air_time: float = 0.08,
+    minimum_step_length: float = 0.02,
+    target_step_length: float = 0.08,
+    failed_step_penalty: float = 1.0,
     repeated_landing_penalty: float = 0.2,
+    asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
   ) -> torch.Tensor:
+    assert target_step_length > minimum_step_length >= 0.0
+    asset: Entity = env.scene[asset_cfg.name]
     contact_sensor: ContactSensor = env.scene[sensor_name]
     first_contact = contact_sensor.compute_first_contact(dt=self.step_dt)
     assert first_contact.shape[1] == 2, (
@@ -325,7 +331,27 @@ class alternating_feet:
       valid_landing & has_previous_landing & (landing_foot == self.last_landing_foot)
     )
 
-    reward = alternating.float() - repeated_landing_penalty * repeated.float()
+    foot_x = asset.data.site_pos_w[:, asset_cfg.site_ids, 0]
+    assert foot_x.shape[1] == 2, (
+      "alternating_feet requires exactly two ordered foot sites"
+    )
+    other_foot = 1 - landing_foot
+    landing_x = torch.gather(foot_x, dim=1, index=landing_foot.unsqueeze(1)).squeeze(1)
+    other_x = torch.gather(foot_x, dim=1, index=other_foot.unsqueeze(1)).squeeze(1)
+    landing_step_length = landing_x - other_x
+    successful_step = alternating & (landing_step_length >= minimum_step_length)
+    failed_step = alternating & ~successful_step
+    step_progress = torch.clamp(
+      (landing_step_length - minimum_step_length)
+      / (target_step_length - minimum_step_length),
+      min=0.0,
+      max=1.0,
+    )
+    reward = (
+      step_progress * successful_step.float()
+      - failed_step_penalty * failed_step.float()
+      - repeated_landing_penalty * repeated.float()
+    )
     command = env.command_manager.get_command(command_name)
     assert command is not None
     total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
@@ -337,6 +363,25 @@ class alternating_feet:
     env.extras["log"]["Metrics/alternating_landing_rate"] = torch.mean(
       alternating.float()
     )
+    env.extras["log"]["Metrics/successful_step_rate"] = torch.mean(
+      successful_step.float()
+    )
+    alternating_count = torch.clamp(torch.sum(alternating.float()), min=1.0)
+    env.extras["log"]["Metrics/landing_step_length_mean"] = (
+      torch.sum(landing_step_length * alternating.float()) / alternating_count
+    )
+    env.extras["log"]["Metrics/left_foot_ahead_fraction"] = torch.mean(
+      (foot_x[:, 0] > foot_x[:, 1]).float()
+    )
+    for foot_id, foot_name in enumerate(("left", "right")):
+      landing_mask = alternating & (landing_foot == foot_id)
+      landing_count = torch.clamp(torch.sum(landing_mask.float()), min=1.0)
+      env.extras["log"][f"Metrics/{foot_name}_landing_step_length"] = (
+        torch.sum(landing_step_length * landing_mask.float()) / landing_count
+      )
+      env.extras["log"][f"Metrics/{foot_name}_step_success_fraction"] = (
+        torch.sum((successful_step & (landing_foot == foot_id)).float()) / landing_count
+      )
     return reward
 
   def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
@@ -353,19 +398,24 @@ def feet_swing_forward_velocity(
   command_threshold: float = 0.05,
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
 ) -> torch.Tensor:
-  """Reward bounded forward velocity of each foot while it is in the air."""
+  """Reward swing-foot velocity relative to the stance foot."""
   assert target_velocity > 0.0, "target_velocity must be positive"
   asset: Entity = env.scene[asset_cfg.name]
   contact_sensor: ContactSensor = env.scene[sensor_name]
   assert contact_sensor.data.found is not None
-  in_air = contact_sensor.data.found == 0
+  in_contact = contact_sensor.data.found > 0
+  in_air = ~in_contact
   foot_velocity_x = asset.data.site_lin_vel_w[:, asset_cfg.site_ids, 0]
   assert in_air.shape == foot_velocity_x.shape, (
     "feet_swing_forward_velocity requires one contact slot per foot site"
   )
 
-  normalized_velocity = torch.clamp(foot_velocity_x / target_velocity, min=0.0, max=1.0)
-  reward = torch.sum(normalized_velocity * in_air.float(), dim=1)
+  single_support = in_air & torch.flip(in_contact, dims=(1,))
+  relative_velocity = foot_velocity_x - torch.flip(foot_velocity_x, dims=(1,))
+  normalized_velocity = torch.clamp(
+    relative_velocity / target_velocity, min=-1.0, max=1.0
+  )
+  reward = torch.sum(normalized_velocity * single_support.float(), dim=1)
 
   command = env.command_manager.get_command(command_name)
   assert command is not None
@@ -373,9 +423,57 @@ def feet_swing_forward_velocity(
   active = (total_command > command_threshold).float()
   reward *= active
   env.extras["log"]["Metrics/swing_forward_velocity_mean"] = torch.mean(
-    foot_velocity_x * in_air.float()
+    relative_velocity * single_support.float()
   )
+  for foot_id, foot_name in enumerate(("left", "right")):
+    swing_mask = single_support[:, foot_id].float()
+    num_swings = torch.clamp(torch.sum(swing_mask), min=1.0)
+    env.extras["log"][f"Metrics/{foot_name}_swing_velocity_mean"] = (
+      torch.sum(relative_velocity[:, foot_id] * swing_mask) / num_swings
+    )
   return reward
+
+
+def feet_contact_flatness(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  command_name: str,
+  settle_time: float = 0.04,
+  command_threshold: float = 0.05,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Penalize foot pitch after heel strike has had time to settle."""
+  asset: Entity = env.scene[asset_cfg.name]
+  contact_sensor: ContactSensor = env.scene[sensor_name]
+  current_contact_time = contact_sensor.data.current_contact_time
+  assert current_contact_time is not None
+  assert current_contact_time.shape[1] == 2, (
+    "feet_contact_flatness requires a contact sensor with exactly two feet"
+  )
+
+  foot_quat_w = asset.data.site_quat_w[:, asset_cfg.site_ids]
+  assert foot_quat_w.shape[1] == 2, (
+    "feet_contact_flatness requires exactly two ordered foot sites"
+  )
+  local_forward = torch.zeros_like(foot_quat_w[..., :3])
+  local_forward[..., 0] = 1.0
+  forward_axis_w = quat_apply(foot_quat_w, local_forward)
+  pitch_error = torch.square(forward_axis_w[..., 2])
+  settled_contact = current_contact_time >= settle_time
+  cost = torch.sum(pitch_error * settled_contact.float(), dim=1)
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  cost *= (total_command > command_threshold).float()
+
+  for foot_id, foot_name in enumerate(("left", "right")):
+    contact_mask = settled_contact[:, foot_id].float()
+    num_contacts = torch.clamp(torch.sum(contact_mask), min=1.0)
+    env.extras["log"][f"Metrics/{foot_name}_foot_pitch_error"] = (
+      torch.sum(torch.sqrt(pitch_error[:, foot_id]) * contact_mask) / num_contacts
+    )
+  return cost
 
 
 def both_feet_contact(

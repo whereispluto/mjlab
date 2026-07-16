@@ -67,14 +67,17 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
 
   track_reward = cfg.rewards["track_linear_velocity"]
   assert track_reward.params["asset_cfg"].joint_names == ("base_x", "base_z")
-  assert track_reward.weight == 4.0
-  assert cfg.rewards["forward_velocity"].weight == 1.5
+  assert track_reward.weight == 3.0
+  assert cfg.rewards["forward_velocity"].weight == 1.0
   assert cfg.rewards["pose"].weight == 0.03
   assert cfg.rewards["pose"].params["std_walking"][r".*_knee_joint.*"] == 0.7
+  assert cfg.rewards["pose"].params["std_walking"][r".*_ankle_joint.*"] == 1.0
   assert cfg.rewards["air_time"].weight == 0.8
   assert cfg.rewards["foot_slip"].weight == -0.5
-  assert cfg.rewards["alternating_feet"].weight == 0.8
-  assert cfg.rewards["swing_forward_velocity"].weight == 0.3
+  assert cfg.rewards["alternating_feet"].weight == 2.0
+  assert cfg.rewards["alternating_feet"].params["target_step_length"] == 0.08
+  assert cfg.rewards["swing_forward_velocity"].weight == 1.0
+  assert cfg.rewards["foot_flatness"].weight == -2.0
   assert cfg.rewards["both_feet_contact"].weight == -0.2
 
 

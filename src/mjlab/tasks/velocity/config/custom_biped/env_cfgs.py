@@ -249,11 +249,11 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.rewards["pose"].params["std_walking"] = {
       r".*_leg_joint.*": 0.5,
       r".*_knee_joint.*": 0.7,
-      r".*_ankle_joint.*": 0.4,
+      r".*_ankle_joint.*": 1.0,
       r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.1,
     }
     cfg.rewards["track_linear_velocity"].func = mdp.track_planar_joint_velocity
-    cfg.rewards["track_linear_velocity"].weight = 4.0
+    cfg.rewards["track_linear_velocity"].weight = 3.0
     cfg.rewards["track_linear_velocity"].params["std"] = 0.2
     cfg.rewards["track_linear_velocity"].params["asset_cfg"] = SceneEntityCfg(
       "robot",
@@ -262,7 +262,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["forward_velocity"] = RewardTermCfg(
       func=mdp.forward_velocity,
-      weight=1.5,
+      weight=1.0,
       params={
         "command_name": "twist",
         "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
@@ -279,23 +279,38 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.rewards["foot_slip"].weight = -0.5
     cfg.rewards["alternating_feet"] = RewardTermCfg(
       func=mdp.alternating_feet,
-      weight=0.8,
+      weight=2.0,
       params={
         "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
         "command_threshold": 0.05,
         "minimum_air_time": 0.08,
+        "minimum_step_length": 0.02,
+        "target_step_length": 0.08,
+        "failed_step_penalty": 1.0,
         "repeated_landing_penalty": 0.2,
+        "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
       },
     )
     cfg.rewards["swing_forward_velocity"] = RewardTermCfg(
       func=mdp.feet_swing_forward_velocity,
-      weight=0.3,
+      weight=1.0,
       params={
         "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
         "command_threshold": 0.05,
         "target_velocity": 0.3,
+        "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
+      },
+    )
+    cfg.rewards["foot_flatness"] = RewardTermCfg(
+      func=mdp.feet_contact_flatness,
+      weight=-2.0,
+      params={
+        "sensor_name": feet_ground_cfg.name,
+        "command_name": "twist",
+        "settle_time": 0.04,
+        "command_threshold": 0.05,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
       },
     )

@@ -15,6 +15,7 @@ from mjlab.sensor import RayCastData, RayCastSensor
 from mjlab.tasks.velocity.mdp.rewards import (
   alternating_feet,
   both_feet_contact,
+  feet_contact_flatness,
   feet_swing_forward_velocity,
   upright,
 )
@@ -210,25 +211,41 @@ def test_alternating_feet_rewards_only_opposite_single_landings():
   )
   command_manager = MagicMock()
   command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 3)
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_pos_w=torch.tensor([[[0.0, 0.0, 0.0], [0.08, 0.0, 0.0]]] * 3)
+    )
+  )
   env = cast(
     "ManagerBasedRlEnv",
     SimpleNamespace(
       num_envs=3,
       device="cpu",
       step_dt=0.02,
-      scene={"feet": contact_sensor},
+      scene={"feet": contact_sensor, "robot": asset},
       command_manager=command_manager,
       extras={"log": {}},
     ),
   )
   reward = alternating_feet(MagicMock(spec=RewardTermCfg), env)
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
 
-  first = reward(env, "feet", "twist", repeated_landing_penalty=0.2)
-  second = reward(env, "feet", "twist", repeated_landing_penalty=0.2)
+  first = reward(
+    env, "feet", "twist", repeated_landing_penalty=0.2, asset_cfg=asset_cfg
+  )
+  second = reward(
+    env, "feet", "twist", repeated_landing_penalty=0.2, asset_cfg=asset_cfg
+  )
 
   torch.testing.assert_close(first, torch.zeros(3))
   torch.testing.assert_close(second, torch.tensor([1.0, -0.2, 0.0]))
   torch.testing.assert_close(reward.last_landing_foot, torch.tensor([1, 1, 0]))
+  torch.testing.assert_close(
+    env.extras["log"]["Metrics/right_landing_step_length"], torch.tensor(0.08)
+  )
+  torch.testing.assert_close(
+    env.extras["log"]["Metrics/right_step_success_fraction"], torch.tensor(1.0)
+  )
 
 
 def test_alternating_feet_reset_clears_selected_history():
@@ -241,22 +258,33 @@ def test_alternating_feet_reset_clears_selected_history():
   )
   command_manager = MagicMock()
   command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 2)
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_pos_w=torch.tensor(
+        [
+          [[0.0, 0.0, 0.0], [0.08, 0.0, 0.0]],
+          [[0.08, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        ]
+      )
+    )
+  )
   env = cast(
     "ManagerBasedRlEnv",
     SimpleNamespace(
       num_envs=2,
       device="cpu",
       step_dt=0.02,
-      scene={"feet": contact_sensor},
+      scene={"feet": contact_sensor, "robot": asset},
       command_manager=command_manager,
       extras={"log": {}},
     ),
   )
   reward = alternating_feet(MagicMock(spec=RewardTermCfg), env)
-  reward(env, "feet", "twist")
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+  reward(env, "feet", "twist", asset_cfg=asset_cfg)
   reward.reset(torch.tensor([0]))
 
-  result = reward(env, "feet", "twist")
+  result = reward(env, "feet", "twist", asset_cfg=asset_cfg)
 
   torch.testing.assert_close(result, torch.tensor([0.0, 1.0]))
 
@@ -271,42 +299,50 @@ def test_alternating_feet_ignores_contact_jitter_after_short_air_time():
   )
   command_manager = MagicMock()
   command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]])
+  asset = SimpleNamespace(
+    data=SimpleNamespace(site_pos_w=torch.tensor([[[0.0, 0.0, 0.0], [0.08, 0.0, 0.0]]]))
+  )
   env = cast(
     "ManagerBasedRlEnv",
     SimpleNamespace(
       num_envs=1,
       device="cpu",
       step_dt=0.02,
-      scene={"feet": contact_sensor},
+      scene={"feet": contact_sensor, "robot": asset},
       command_manager=command_manager,
       extras={"log": {}},
     ),
   )
   reward = alternating_feet(MagicMock(spec=RewardTermCfg), env)
-  reward(env, "feet", "twist", minimum_air_time=0.08)
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+  reward(env, "feet", "twist", minimum_air_time=0.08, asset_cfg=asset_cfg)
   contact_sensor.data.last_air_time = torch.tensor([[0.15, 0.03]])
 
-  result = reward(env, "feet", "twist", minimum_air_time=0.08)
+  result = reward(env, "feet", "twist", minimum_air_time=0.08, asset_cfg=asset_cfg)
 
   torch.testing.assert_close(result, torch.zeros(1))
   torch.testing.assert_close(reward.last_landing_foot, torch.tensor([0]))
 
 
 def test_feet_swing_forward_velocity_is_bounded_and_command_gated():
-  """Only airborne, forward-moving feet under a motion command earn reward."""
+  """Relative forward swing is rewarded and backward swing is penalized."""
   contact_sensor = SimpleNamespace(
-    data=SimpleNamespace(found=torch.tensor([[0, 1], [0, 0]]))
+    data=SimpleNamespace(found=torch.tensor([[0, 1], [0, 0], [0, 1]]))
   )
   asset = SimpleNamespace(
     data=SimpleNamespace(
       site_lin_vel_w=torch.tensor(
-        [[[0.15, 0.0, 0.0], [0.4, 0.0, 0.0]], [[-0.2, 0.0, 0.0], [0.6, 0.0, 0.0]]]
+        [
+          [[0.15, 0.0, 0.0], [0.0, 0.0, 0.0]],
+          [[-0.2, 0.0, 0.0], [0.6, 0.0, 0.0]],
+          [[-0.15, 0.0, 0.0], [0.0, 0.0, 0.0]],
+        ]
       )
     )
   )
   command_manager = MagicMock()
   command_manager.get_command.return_value = torch.tensor(
-    [[0.2, 0.0, 0.0], [0.0, 0.0, 0.0]]
+    [[0.2, 0.0, 0.0], [0.0, 0.0, 0.0], [0.2, 0.0, 0.0]]
   )
   env = cast(
     "ManagerBasedRlEnv",
@@ -326,7 +362,46 @@ def test_feet_swing_forward_velocity_is_bounded_and_command_gated():
     asset_cfg=asset_cfg,
   )
 
-  torch.testing.assert_close(result, torch.tensor([0.5, 0.0]))
+  torch.testing.assert_close(result, torch.tensor([0.5, 0.0, -0.5]))
+
+
+def test_feet_contact_flatness_allows_heel_strike_then_penalizes_pitch():
+  """Foot pitch is penalized only after contact settles and while moving."""
+  half_angle = math.radians(30.0) / 2.0
+  flat = [1.0, 0.0, 0.0, 0.0]
+  pitched = [math.cos(half_angle), 0.0, math.sin(half_angle), 0.0]
+  foot_quat_w = torch.tensor(
+    [[flat, pitched], [flat, pitched], [flat, pitched]], dtype=torch.float32
+  )
+  contact_sensor = SimpleNamespace(
+    data=SimpleNamespace(
+      current_contact_time=torch.tensor([[0.1, 0.1], [0.02, 0.02], [0.1, 0.1]])
+    )
+  )
+  asset = SimpleNamespace(data=SimpleNamespace(site_quat_w=foot_quat_w))
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor(
+    [[0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.0, 0.0, 0.0]]
+  )
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      scene={"robot": asset, "feet": contact_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  result = feet_contact_flatness(
+    env,
+    sensor_name="feet",
+    command_name="twist",
+    settle_time=0.04,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([0.25, 0.0, 0.0]), atol=1e-6, rtol=0)
 
 
 def test_both_feet_contact_is_command_gated():
