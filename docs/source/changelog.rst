@@ -59,8 +59,10 @@ Changed
 ^^^^^^^
 
 - Custom biped gait rewards now require each alternating landing foot to pass
-  the stance foot, measure swing velocity relative to the stance foot, and
-  encourage each sole to settle flat after heel strike.
+  the stance foot, penalize prolonged failure to switch the leading foot,
+  track an observable periodic left/right foot-position target, measure swing
+  velocity relative to the stance foot, and encourage each sole to settle flat
+  after heel strike.
 - Retuned the custom biped no-linear-velocity task to discourage foot dragging
   and promote alternating forward swing, while preserving its stable asymmetric
   standing pose.

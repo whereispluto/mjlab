@@ -390,6 +390,181 @@ class alternating_feet:
     self.last_landing_foot[env_ids] = -1
 
 
+class alternating_foot_lead:
+  """Reward switching which foot leads and penalize prolonged lead stagnation."""
+
+  def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRlEnv):
+    del cfg
+    self.last_leading_foot = torch.full(
+      (env.num_envs,), -1, device=env.device, dtype=torch.long
+    )
+    self.time_since_switch = torch.zeros(
+      env.num_envs, device=env.device, dtype=torch.float32
+    )
+    self.step_dt = env.step_dt
+
+  def __call__(
+    self,
+    env: ManagerBasedRlEnv,
+    command_name: str,
+    minimum_lead: float = 0.02,
+    maximum_stagnation_time: float = 0.6,
+    stagnation_penalty: float = 0.5,
+    maximum_penalty_scale: float = 4.0,
+    command_threshold: float = 0.05,
+    asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+  ) -> torch.Tensor:
+    assert minimum_lead > 0.0
+    assert maximum_stagnation_time > 0.0
+    assert maximum_penalty_scale >= 1.0
+    asset: Entity = env.scene[asset_cfg.name]
+    foot_x = asset.data.site_pos_w[:, asset_cfg.site_ids, 0]
+    assert foot_x.shape[1] == 2, (
+      "alternating_foot_lead requires exactly two ordered foot sites"
+    )
+
+    separation = foot_x[:, 0] - foot_x[:, 1]
+    candidate_leader = torch.full_like(self.last_leading_foot, -1)
+    candidate_leader = torch.where(
+      separation >= minimum_lead,
+      torch.zeros_like(candidate_leader),
+      candidate_leader,
+    )
+    candidate_leader = torch.where(
+      separation <= -minimum_lead,
+      torch.ones_like(candidate_leader),
+      candidate_leader,
+    )
+
+    command = env.command_manager.get_command(command_name)
+    assert command is not None
+    total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+    active = total_command > command_threshold
+    candidate_valid = candidate_leader >= 0
+    initialized = active & candidate_valid & (self.last_leading_foot < 0)
+    switched = (
+      active
+      & candidate_valid
+      & (self.last_leading_foot >= 0)
+      & (candidate_leader != self.last_leading_foot)
+    )
+
+    self.time_since_switch = torch.where(
+      active,
+      self.time_since_switch + self.step_dt,
+      torch.zeros_like(self.time_since_switch),
+    )
+    self.time_since_switch = torch.where(
+      initialized | switched,
+      torch.zeros_like(self.time_since_switch),
+      self.time_since_switch,
+    )
+    update_leader = active & candidate_valid
+    self.last_leading_foot = torch.where(
+      update_leader, candidate_leader, self.last_leading_foot
+    )
+
+    has_leader = self.last_leading_foot >= 0
+    stagnation = torch.clamp(
+      (self.time_since_switch - maximum_stagnation_time) / maximum_stagnation_time,
+      min=0.0,
+      max=maximum_penalty_scale,
+    )
+    reward = switched.float() - stagnation_penalty * stagnation * has_leader.float()
+    env.extras["log"]["Metrics/lead_switch_rate"] = torch.mean(switched.float())
+    env.extras["log"]["Metrics/lead_stagnation_time_mean"] = torch.mean(
+      self.time_since_switch * has_leader.float()
+    )
+    env.extras["log"]["Metrics/lead_stagnation_penalty_mean"] = torch.mean(
+      stagnation * has_leader.float()
+    )
+    return reward
+
+  def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
+    if env_ids is None:
+      env_ids = slice(None)
+    self.last_leading_foot[env_ids] = -1
+    self.time_since_switch[env_ids] = 0.0
+
+
+def feet_phase_position(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  cycle_time: float,
+  target_step_length: float,
+  tolerance: float,
+  maximum_error_scale: float = 2.0,
+  command_threshold: float = 0.05,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Track a periodic target for which foot should lead in the sagittal plane."""
+  assert cycle_time > 0.0
+  assert target_step_length > 0.0
+  assert tolerance > 0.0
+  assert maximum_error_scale >= 1.0
+  asset: Entity = env.scene[asset_cfg.name]
+  foot_x = asset.data.site_pos_w[:, asset_cfg.site_ids, 0]
+  assert foot_x.shape[1] == 2, (
+    "feet_phase_position requires exactly two ordered foot sites"
+  )
+
+  phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  target_separation = target_step_length * torch.cos(phase)
+  actual_separation = foot_x[:, 0] - foot_x[:, 1]
+  tracking_error = torch.abs(actual_separation - target_separation)
+  normalized_error = torch.clamp(
+    tracking_error / tolerance, min=0.0, max=maximum_error_scale
+  )
+  cost = torch.square(normalized_error)
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  cost *= (total_command > command_threshold).float()
+  env.extras["log"]["Metrics/phase_foot_separation_error"] = torch.mean(tracking_error)
+  env.extras["log"]["Metrics/phase_foot_separation_target"] = torch.mean(
+    target_separation
+  )
+  return cost
+
+
+def feet_phase_alignment(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  cycle_time: float,
+  target_step_length: float,
+  command_threshold: float = 0.05,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward the correct foot leading during each half of the gait cycle."""
+  assert cycle_time > 0.0
+  assert target_step_length > 0.0
+  asset: Entity = env.scene[asset_cfg.name]
+  foot_x = asset.data.site_pos_w[:, asset_cfg.site_ids, 0]
+  assert foot_x.shape[1] == 2, (
+    "feet_phase_alignment requires exactly two ordered foot sites"
+  )
+
+  phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  desired_lead_sign = torch.where(
+    torch.cos(phase) >= 0.0,
+    torch.ones_like(phase),
+    -torch.ones_like(phase),
+  )
+  actual_separation = foot_x[:, 0] - foot_x[:, 1]
+  normalized_separation = torch.clamp(
+    actual_separation / target_step_length, min=-1.0, max=1.0
+  )
+  reward = desired_lead_sign * normalized_separation
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  reward *= (total_command > command_threshold).float()
+  env.extras["log"]["Metrics/phase_lead_alignment"] = torch.mean(reward)
+  return reward
+
+
 def feet_swing_forward_velocity(
   env: ManagerBasedRlEnv,
   sensor_name: str,

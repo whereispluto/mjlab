@@ -12,10 +12,14 @@ import torch
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import RayCastData, RayCastSensor
+from mjlab.tasks.velocity.mdp.observations import gait_phase
 from mjlab.tasks.velocity.mdp.rewards import (
   alternating_feet,
+  alternating_foot_lead,
   both_feet_contact,
   feet_contact_flatness,
+  feet_phase_alignment,
+  feet_phase_position,
   feet_swing_forward_velocity,
   upright,
 )
@@ -322,6 +326,161 @@ def test_alternating_feet_ignores_contact_jitter_after_short_air_time():
 
   torch.testing.assert_close(result, torch.zeros(1))
   torch.testing.assert_close(reward.last_landing_foot, torch.tensor([0]))
+
+
+def test_alternating_foot_lead_penalizes_stagnation_and_rewards_switch():
+  """A leading foot held too long is penalized until the opposite foot passes."""
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_pos_w=torch.tensor(
+        [
+          [[0.04, 0.0, 0.0], [0.0, 0.0, 0.0]],
+          [[0.0, 0.0, 0.0], [0.04, 0.0, 0.0]],
+        ]
+      )
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 2)
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      num_envs=2,
+      device="cpu",
+      step_dt=0.1,
+      scene={"robot": asset},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  reward = alternating_foot_lead(MagicMock(spec=RewardTermCfg), env)
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  stagnation_reward = reward(
+    env,
+    "twist",
+    minimum_lead=0.02,
+    maximum_stagnation_time=0.2,
+    stagnation_penalty=0.5,
+    asset_cfg=asset_cfg,
+  )
+  for _ in range(6):
+    stagnation_reward = reward(
+      env,
+      "twist",
+      minimum_lead=0.02,
+      maximum_stagnation_time=0.2,
+      stagnation_penalty=0.5,
+      asset_cfg=asset_cfg,
+    )
+
+  torch.testing.assert_close(stagnation_reward, torch.tensor([-1.0, -1.0]))
+
+  asset.data.site_pos_w = torch.flip(asset.data.site_pos_w, dims=(1,))
+  switch_reward = reward(
+    env,
+    "twist",
+    minimum_lead=0.02,
+    maximum_stagnation_time=0.2,
+    stagnation_penalty=0.5,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(switch_reward, torch.ones(2))
+  torch.testing.assert_close(reward.time_since_switch, torch.zeros(2))
+
+
+def test_gait_phase_observation_tracks_episode_time():
+  """One-second gait phase should advance by a quarter cycle every 0.25 s."""
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([0, 1, 2, 3]),
+      step_dt=0.25,
+    ),
+  )
+
+  result = gait_phase(env, cycle_time=1.0)
+
+  expected = torch.tensor([[0.0, 1.0], [1.0, 0.0], [0.0, -1.0], [-1.0, 0.0]])
+  torch.testing.assert_close(result, expected, atol=1e-6, rtol=0)
+
+
+def test_feet_phase_position_rewards_alternating_lead_targets():
+  """The left and right foot should lead on opposite halves of the gait cycle."""
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_pos_w=torch.tensor(
+        [
+          [[0.03, 0.0, 0.0], [-0.03, 0.0, 0.0]],
+          [[-0.03, 0.0, 0.0], [0.03, 0.0, 0.0]],
+          [[0.03, 0.0, 0.0], [-0.03, 0.0, 0.0]],
+        ]
+      )
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 3)
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([0, 2, 2]),
+      step_dt=0.25,
+      scene={"robot": asset},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  result = feet_phase_position(
+    env,
+    command_name="twist",
+    cycle_time=1.0,
+    target_step_length=0.06,
+    tolerance=0.12,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([0.0, 0.0, 1.0]))
+
+
+def test_feet_phase_alignment_requires_lead_direction_to_switch():
+  """A fixed leading foot is rewarded in one half-cycle and penalized in the other."""
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_pos_w=torch.tensor(
+        [
+          [[0.03, 0.0, 0.0], [-0.03, 0.0, 0.0]],
+          [[-0.03, 0.0, 0.0], [0.03, 0.0, 0.0]],
+          [[0.03, 0.0, 0.0], [-0.03, 0.0, 0.0]],
+        ]
+      )
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 3)
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([0, 2, 2]),
+      step_dt=0.25,
+      scene={"robot": asset},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  result = feet_phase_alignment(
+    env,
+    command_name="twist",
+    cycle_time=1.0,
+    target_step_length=0.06,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([1.0, 1.0, -1.0]))
 
 
 def test_feet_swing_forward_velocity_is_bounded_and_command_gated():

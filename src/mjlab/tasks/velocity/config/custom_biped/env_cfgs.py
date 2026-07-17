@@ -8,6 +8,7 @@ from mjlab.asset_zoo.robots import (
 )
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.observation_manager import ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.managers.termination_manager import TerminationTermCfg
@@ -245,6 +246,14 @@ def _custom_biped_flat_forward_env_cfg(
     actor_terms["joint_pos"].flatten_history_dim = True
     actor_terms["joint_vel"].history_length = 4
     actor_terms["joint_vel"].flatten_history_dim = True
+    actor_terms["gait_phase"] = ObservationTermCfg(
+      func=mdp.gait_phase,
+      params={"cycle_time": 1.0},
+    )
+    critic_terms["gait_phase"] = ObservationTermCfg(
+      func=mdp.gait_phase,
+      params={"cycle_time": 1.0},
+    )
     cfg.rewards["pose"].weight = 0.03
     cfg.rewards["pose"].params["std_walking"] = {
       r".*_leg_joint.*": 0.5,
@@ -253,7 +262,7 @@ def _custom_biped_flat_forward_env_cfg(
       r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.1,
     }
     cfg.rewards["track_linear_velocity"].func = mdp.track_planar_joint_velocity
-    cfg.rewards["track_linear_velocity"].weight = 3.0
+    cfg.rewards["track_linear_velocity"].weight = 2.0
     cfg.rewards["track_linear_velocity"].params["std"] = 0.2
     cfg.rewards["track_linear_velocity"].params["asset_cfg"] = SceneEntityCfg(
       "robot",
@@ -262,7 +271,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["forward_velocity"] = RewardTermCfg(
       func=mdp.forward_velocity,
-      weight=1.0,
+      weight=0.5,
       params={
         "command_name": "twist",
         "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
@@ -289,6 +298,43 @@ def _custom_biped_flat_forward_env_cfg(
         "target_step_length": 0.08,
         "failed_step_penalty": 1.0,
         "repeated_landing_penalty": 0.2,
+        "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
+      },
+    )
+    cfg.rewards["foot_lead_switch"] = RewardTermCfg(
+      func=mdp.alternating_foot_lead,
+      weight=0.5,
+      params={
+        "command_name": "twist",
+        "minimum_lead": 0.02,
+        "maximum_stagnation_time": 0.6,
+        "stagnation_penalty": 0.5,
+        "maximum_penalty_scale": 1.0,
+        "command_threshold": 0.05,
+        "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
+      },
+    )
+    cfg.rewards["phase_foot_position"] = RewardTermCfg(
+      func=mdp.feet_phase_position,
+      weight=-0.5,
+      params={
+        "command_name": "twist",
+        "cycle_time": 1.0,
+        "target_step_length": 0.06,
+        "tolerance": 0.12,
+        "maximum_error_scale": 2.0,
+        "command_threshold": 0.05,
+        "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
+      },
+    )
+    cfg.rewards["phase_foot_alignment"] = RewardTermCfg(
+      func=mdp.feet_phase_alignment,
+      weight=2.0,
+      params={
+        "command_name": "twist",
+        "cycle_time": 1.0,
+        "target_step_length": 0.06,
+        "command_threshold": 0.05,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
       },
     )
@@ -322,6 +368,14 @@ def _custom_biped_flat_forward_env_cfg(
         "command_name": "twist",
         "command_threshold": 0.05,
       },
+    )
+    cfg.rewards["termination_penalty"] = RewardTermCfg(
+      func=mdp.is_terminated,
+      weight=-200.0,
+    )
+    cfg.rewards["alive"] = RewardTermCfg(
+      func=mdp.is_alive,
+      weight=1.0,
     )
     cfg.curriculum["command_vel"].params["velocity_stages"] = [
       {"step": 0, "lin_vel_x": (0.1, 0.2), "ang_vel_z": (0.0, 0.0)},

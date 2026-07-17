@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import torch
@@ -9,6 +10,13 @@ from mjlab.sensor.terrain_height_sensor import TerrainHeightSensor
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
+
+
+def gait_phase(env: ManagerBasedRlEnv, cycle_time: float) -> torch.Tensor:
+  """Return sine and cosine of a per-environment walking phase."""
+  assert cycle_time > 0.0
+  phase = 2.0 * math.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  return torch.stack((torch.sin(phase), torch.cos(phase)), dim=1)
 
 
 def foot_height(env: ManagerBasedRlEnv, sensor_name: str) -> torch.Tensor:
