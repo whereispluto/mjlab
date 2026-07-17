@@ -1,6 +1,7 @@
 """Custom biped velocity environment configurations."""
 
 import math
+from copy import deepcopy
 
 from mjlab.asset_zoo.robots import (
   CUSTOM_BIPED_ACTION_SCALE,
@@ -242,10 +243,30 @@ def _custom_biped_flat_forward_env_cfg(
     ]
   else:
     actor_terms.pop("base_lin_vel", None)
+    actor_terms["joint_pos"] = deepcopy(actor_terms["joint_pos"])
+    actor_terms["joint_vel"] = deepcopy(actor_terms["joint_vel"])
+    actuated_joint_names = (
+      "left_leg_joint",
+      "left_knee_joint",
+      "left_ankle_joint",
+      "right_leg_joint",
+      "right_knee_joint",
+      "right_ankle_joint",
+    )
+    actor_terms["joint_pos"].params["asset_cfg"] = SceneEntityCfg(
+      "robot", joint_names=actuated_joint_names, preserve_order=True
+    )
     actor_terms["joint_pos"].history_length = 4
     actor_terms["joint_pos"].flatten_history_dim = True
+    actor_terms["joint_vel"].params["asset_cfg"] = SceneEntityCfg(
+      "robot", joint_names=actuated_joint_names, preserve_order=True
+    )
     actor_terms["joint_vel"].history_length = 4
     actor_terms["joint_vel"].flatten_history_dim = True
+    critic_terms["joint_pos"].history_length = 4
+    critic_terms["joint_pos"].flatten_history_dim = True
+    critic_terms["joint_vel"].history_length = 4
+    critic_terms["joint_vel"].flatten_history_dim = True
     actor_terms["gait_phase"] = ObservationTermCfg(
       func=mdp.gait_phase,
       params={"cycle_time": 1.0},

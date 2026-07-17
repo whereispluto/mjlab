@@ -58,6 +58,9 @@ Added
 Changed
 ^^^^^^^
 
+- Custom biped no-linear-velocity actor observations now restrict joint position
+  and velocity history to the six actuated leg joints, excluding the planar
+  ``base_x``, ``base_z``, and ``base_pitch`` joints.
 - Custom biped gait rewards now require each alternating landing foot to pass
   the stance foot, penalize prolonged failure to switch the leading foot,
   track an observable periodic left/right foot-position target, measure swing

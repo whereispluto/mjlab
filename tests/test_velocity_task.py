@@ -86,6 +86,28 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["alive"].weight == 1.0
   assert "gait_phase" in cfg.observations["actor"].terms
   assert "gait_phase" in cfg.observations["critic"].terms
+  actuated_joint_names = (
+    "left_leg_joint",
+    "left_knee_joint",
+    "left_ankle_joint",
+    "right_leg_joint",
+    "right_knee_joint",
+    "right_ankle_joint",
+  )
+  actor_terms = cfg.observations["actor"].terms
+  assert actor_terms["joint_pos"].params["asset_cfg"].joint_names == (
+    actuated_joint_names
+  )
+  assert actor_terms["joint_pos"].params["asset_cfg"].preserve_order
+  assert actor_terms["joint_vel"].params["asset_cfg"].joint_names == (
+    actuated_joint_names
+  )
+  assert actor_terms["joint_vel"].params["asset_cfg"].preserve_order
+  critic_terms = cfg.observations["critic"].terms
+  assert "asset_cfg" not in critic_terms["joint_pos"].params
+  assert critic_terms["joint_pos"].history_length == 4
+  assert "asset_cfg" not in critic_terms["joint_vel"].params
+  assert critic_terms["joint_vel"].history_length == 4
   assert cfg.rewards["swing_forward_velocity"].weight == 1.0
   assert cfg.rewards["foot_flatness"].weight == -2.0
   assert cfg.rewards["both_feet_contact"].weight == -0.2
