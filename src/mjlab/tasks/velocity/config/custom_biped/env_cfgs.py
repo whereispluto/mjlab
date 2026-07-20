@@ -292,7 +292,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["forward_velocity"] = RewardTermCfg(
       func=mdp.forward_velocity,
-      weight=0.5,
+      weight=1.5,
       params={
         "command_name": "twist",
         "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
@@ -302,6 +302,11 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.rewards["action_acc_l2"] = RewardTermCfg(
       func=mdp.action_acc_l2,
       weight=-0.05,
+    )
+    cfg.rewards["motor_effort_l2"] = RewardTermCfg(
+      func=mdp.joint_torques_l2,
+      weight=-0.02,
+      params={"asset_cfg": SceneEntityCfg("robot")},
     )
     cfg.rewards["air_time"].weight = 0.8
     cfg.rewards["air_time"].params["threshold_min"] = 0.2
@@ -342,7 +347,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_foot_position"] = RewardTermCfg(
       func=mdp.feet_phase_position,
-      weight=-1.0,
+      weight=-1.5,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
@@ -355,7 +360,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_foot_alignment"] = RewardTermCfg(
       func=mdp.feet_phase_alignment,
-      weight=4.0,
+      weight=6.0,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
@@ -366,7 +371,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_foot_contact"] = RewardTermCfg(
       func=mdp.feet_phase_contact,
-      weight=4.0,
+      weight=2.0,
       params={
         "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
@@ -388,7 +393,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_joint_position"] = RewardTermCfg(
       func=mdp.joints_phase_position,
-      weight=-3.0,
+      weight=-1.5,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
@@ -403,11 +408,11 @@ def _custom_biped_flat_forward_env_cfg(
       },
     )
     cfg.rewards["swing_forward_velocity"] = RewardTermCfg(
-      func=mdp.feet_swing_forward_velocity,
-      weight=1.0,
+      func=mdp.feet_phase_swing_velocity,
+      weight=2.0,
       params={
-        "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
+        "cycle_time": 1.0,
         "command_threshold": 0.05,
         "target_velocity": 0.3,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),

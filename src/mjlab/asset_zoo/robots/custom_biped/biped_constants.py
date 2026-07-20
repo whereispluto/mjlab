@@ -24,13 +24,14 @@ HTDW4438_RATED_SPEED = 40.0 * 2.0 * math.pi / 60.0  # rad/s
 HTDW4438_NO_LOAD_SPEED = 160.0 * 2.0 * math.pi / 60.0  # rad/s
 HTDW4438_RATED_OUTPUT_POWER = 8.5  # W
 
-# The datasheet does not specify reflected rotor inertia or closed-loop gains.
-# Keep the previous controller settings until they can be identified on a suspended
-# joint, while replacing the documented torque-speed capability with the real motor
-# limits.
+# The datasheet does not specify reflected rotor inertia or closed-loop gains. These
+# PD gains are therefore explicit controller settings, shared with the STM32 true
+# motion-control mode, and still need validation on a suspended joint.
 HTDW4438_REFLECTED_INERTIA_ESTIMATE = 0.01  # kg m^2; pending identification
-HTDW4438_POSITION_STIFFNESS = 25.2661872668  # N m/rad; pending identification
-HTDW4438_POSITION_DAMPING = 2.0106192983  # N m s/rad; pending identification
+# These values map exactly to the M4438_30 int16 protocol gain codes (3020, 240),
+# avoiding a small sim/firmware mismatch from protocol quantization.
+HTDW4438_POSITION_STIFFNESS = 25.2628551029  # Kp, N m/rad
+HTDW4438_POSITION_DAMPING = 2.0076441141  # Kd, N m s/rad
 
 CUSTOM_BIPED_ACTUATOR_LEG = DcMotorActuatorCfg(
   target_names_expr=(".*_leg_joint",),

@@ -69,6 +69,9 @@ Changed
   landings are penalized to prevent high-frequency foot tapping. Its initial
   crouch is now symmetric so the posture reward no longer favors keeping the
   left foot permanently ahead.
+- Custom biped gait shaping now schedules forward swing velocity by gait phase,
+  prioritizes foot-lead alternation over easy single-support contact reward, and
+  penalizes sustained motor effort under the real HTDW-4438-30 torque limits.
 - Retuned the custom biped no-linear-velocity task to discourage foot dragging
   and promote alternating forward swing from a stable crouched standing pose.
 - Custom biped no-linear-velocity training now starts with a conservative

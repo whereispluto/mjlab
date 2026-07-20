@@ -665,6 +665,60 @@ def feet_phase_height(
   return cost
 
 
+def feet_phase_swing_velocity(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  cycle_time: float,
+  target_velocity: float,
+  command_threshold: float = 0.05,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Reward forward motion of the foot scheduled to swing by the gait clock.
+
+  Unlike contact-gated swing rewards, this term cannot be collected by keeping
+  the same foot airborne. The phase clock assigns the right foot to swing in
+  the first half-cycle and the left foot in the second half-cycle.
+  """
+  assert cycle_time > 0.0
+  assert target_velocity > 0.0
+  asset: Entity = env.scene[asset_cfg.name]
+  foot_velocity_x = asset.data.site_lin_vel_w[:, asset_cfg.site_ids, 0]
+  assert foot_velocity_x.shape[1] == 2, (
+    "feet_phase_swing_velocity requires exactly two ordered foot sites"
+  )
+
+  phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  support_clock = torch.sin(phase)
+  swing_weight = torch.stack(
+    (torch.clamp(-support_clock, min=0.0), torch.clamp(support_clock, min=0.0)),
+    dim=1,
+  )
+  relative_velocity = foot_velocity_x - torch.flip(foot_velocity_x, dims=(1,))
+  normalized_velocity = torch.clamp(
+    relative_velocity / target_velocity, min=-1.0, max=1.0
+  )
+  reward = torch.sum(normalized_velocity * swing_weight, dim=1)
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  active = total_command > command_threshold
+  reward *= active.float()
+
+  active_swing_weight = swing_weight * active.unsqueeze(1).float()
+  total_weight = torch.clamp(torch.sum(active_swing_weight), min=1.0)
+  env.extras["log"]["Metrics/phase_swing_velocity_mean"] = (
+    torch.sum(relative_velocity * active_swing_weight) / total_weight
+  )
+  for foot_id, foot_name in enumerate(("left", "right")):
+    foot_weight = active_swing_weight[:, foot_id]
+    weight_sum = torch.clamp(torch.sum(foot_weight), min=1.0)
+    env.extras["log"][f"Metrics/{foot_name}_phase_swing_velocity_mean"] = (
+      torch.sum(relative_velocity[:, foot_id] * foot_weight) / weight_sum
+    )
+  return reward
+
+
 def joints_phase_position(
   env: ManagerBasedRlEnv,
   command_name: str,

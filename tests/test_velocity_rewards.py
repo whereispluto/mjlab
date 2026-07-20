@@ -22,6 +22,7 @@ from mjlab.tasks.velocity.mdp.rewards import (
   feet_phase_contact,
   feet_phase_height,
   feet_phase_position,
+  feet_phase_swing_velocity,
   feet_swing_forward_velocity,
   joints_phase_position,
   upright,
@@ -604,6 +605,50 @@ def test_feet_phase_height_schedules_opposite_swing_clearance():
   )
 
   torch.testing.assert_close(result, torch.tensor([0.0, 2.0, 0.0, 0.0]))
+
+
+def test_feet_phase_swing_velocity_schedules_opposite_forward_swing():
+  """Only the phase-scheduled foot should receive forward-swing reward."""
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_lin_vel_w=torch.tensor(
+        [
+          [[0.0, 0.0, 0.0], [0.3, 0.0, 0.0]],
+          [[0.3, 0.0, 0.0], [0.0, 0.0, 0.0]],
+          [[0.0, 0.0, 0.0], [-0.3, 0.0, 0.0]],
+          [[0.0, 0.0, 0.0], [0.3, 0.0, 0.0]],
+        ]
+      )
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor(
+    [[0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.0, 0.0, 0.0]]
+  )
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([1, 3, 1, 1]),
+      step_dt=0.25,
+      scene={"robot": asset},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  result = feet_phase_swing_velocity(
+    env,
+    command_name="twist",
+    cycle_time=1.0,
+    target_velocity=0.3,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([1.0, 1.0, -1.0, 0.0]))
+  torch.testing.assert_close(
+    env.extras["log"]["Metrics/phase_swing_velocity_mean"], torch.tensor(0.1)
+  )
 
 
 def test_joints_phase_position_tracks_opposite_hip_and_swing_targets():

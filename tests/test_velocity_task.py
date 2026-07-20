@@ -68,7 +68,7 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   track_reward = cfg.rewards["track_linear_velocity"]
   assert track_reward.params["asset_cfg"].joint_names == ("base_x", "base_z")
   assert track_reward.weight == 2.0
-  assert cfg.rewards["forward_velocity"].weight == 0.5
+  assert cfg.rewards["forward_velocity"].weight == 1.5
   assert cfg.rewards["pose"].weight == 0.03
   assert cfg.rewards["pose"].params["std_walking"][r".*_knee_joint.*"] == 0.7
   assert cfg.rewards["pose"].params["std_walking"][r".*_ankle_joint.*"] == 1.0
@@ -77,6 +77,7 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["foot_slip"].weight == -0.5
   assert cfg.rewards["action_rate_l2"].weight == -0.1
   assert cfg.rewards["action_acc_l2"].weight == -0.05
+  assert cfg.rewards["motor_effort_l2"].weight == -0.02
   assert cfg.rewards["alternating_feet"].weight == 3.0
   assert cfg.rewards["alternating_feet"].params["minimum_air_time"] == 0.25
   assert cfg.rewards["alternating_feet"].params["rapid_landing_penalty"] == 1.0
@@ -84,16 +85,18 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["foot_lead_switch"].weight == 1.0
   assert cfg.rewards["foot_lead_switch"].params["maximum_stagnation_time"] == 0.6
   assert cfg.rewards["foot_lead_switch"].params["maximum_penalty_scale"] == 2.0
-  assert cfg.rewards["phase_foot_position"].weight == -1.0
+  assert cfg.rewards["phase_foot_position"].weight == -1.5
   assert cfg.rewards["phase_foot_position"].params["cycle_time"] == 1.0
-  assert cfg.rewards["phase_foot_alignment"].weight == 4.0
-  assert cfg.rewards["phase_foot_contact"].weight == 4.0
+  assert cfg.rewards["phase_foot_alignment"].weight == 6.0
+  assert cfg.rewards["phase_foot_contact"].weight == 2.0
   assert cfg.rewards["phase_foot_contact"].params["cycle_time"] == 1.0
   assert cfg.rewards["phase_foot_height"].weight == -2.0
   assert cfg.rewards["phase_foot_height"].params["target_height"] == 0.04
-  assert cfg.rewards["phase_joint_position"].weight == -3.0
+  assert cfg.rewards["phase_joint_position"].weight == -1.5
   assert cfg.rewards["phase_joint_position"].params["hip_amplitude"] == 0.12
   assert cfg.rewards["phase_joint_position"].params["tolerance"] == 0.2
+  assert cfg.rewards["swing_forward_velocity"].weight == 2.0
+  assert cfg.rewards["swing_forward_velocity"].params["cycle_time"] == 1.0
   assert cfg.rewards["termination_penalty"].weight == -200.0
   assert cfg.rewards["alive"].weight == 1.0
   assert "gait_phase" in cfg.observations["actor"].terms
@@ -120,7 +123,6 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert critic_terms["joint_pos"].history_length == 4
   assert "asset_cfg" not in critic_terms["joint_vel"].params
   assert critic_terms["joint_vel"].history_length == 4
-  assert cfg.rewards["swing_forward_velocity"].weight == 1.0
   assert cfg.rewards["foot_flatness"].weight == -3.0
   assert cfg.rewards["both_feet_contact"].weight == -0.2
 

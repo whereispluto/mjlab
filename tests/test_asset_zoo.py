@@ -9,6 +9,8 @@ from mjlab.asset_zoo.robots import (
 )
 from mjlab.asset_zoo.robots.custom_biped.biped_constants import (
   HTDW4438_NO_LOAD_SPEED,
+  HTDW4438_POSITION_DAMPING,
+  HTDW4438_POSITION_STIFFNESS,
   HTDW4438_RATED_TORQUE,
   HTDW4438_STALL_TORQUE,
 )
@@ -59,3 +61,5 @@ def test_custom_biped_uses_htdw4438_motor_limits() -> None:
     assert actuator.effort_limit == pytest.approx(HTDW4438_RATED_TORQUE)
     assert actuator.saturation_effort == pytest.approx(HTDW4438_STALL_TORQUE)
     assert actuator.velocity_limit == pytest.approx(HTDW4438_NO_LOAD_SPEED)
+    assert actuator.stiffness == pytest.approx(HTDW4438_POSITION_STIFFNESS)
+    assert actuator.damping == pytest.approx(HTDW4438_POSITION_DAMPING)
