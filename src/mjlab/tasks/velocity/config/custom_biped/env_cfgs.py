@@ -298,10 +298,14 @@ def _custom_biped_flat_forward_env_cfg(
         "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
       },
     )
-    cfg.rewards["action_rate_l2"].weight = -0.003
+    cfg.rewards["action_rate_l2"].weight = -0.1
+    cfg.rewards["action_acc_l2"] = RewardTermCfg(
+      func=mdp.action_acc_l2,
+      weight=-0.05,
+    )
     cfg.rewards["air_time"].weight = 0.8
-    cfg.rewards["air_time"].params["threshold_min"] = 0.1
-    cfg.rewards["air_time"].params["threshold_max"] = 0.4
+    cfg.rewards["air_time"].params["threshold_min"] = 0.2
+    cfg.rewards["air_time"].params["threshold_max"] = 0.5
     cfg.rewards["foot_clearance"].weight = -1.0
     cfg.rewards["foot_clearance"].params["target_height"] = 0.04
     cfg.rewards["foot_swing_height"].weight = -0.5
@@ -314,11 +318,12 @@ def _custom_biped_flat_forward_env_cfg(
         "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
         "command_threshold": 0.05,
-        "minimum_air_time": 0.08,
+        "minimum_air_time": 0.25,
         "minimum_step_length": 0.02,
         "target_step_length": 0.08,
         "failed_step_penalty": 1.0,
         "repeated_landing_penalty": 0.2,
+        "rapid_landing_penalty": 1.0,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
       },
     )

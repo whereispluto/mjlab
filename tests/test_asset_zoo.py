@@ -1,10 +1,16 @@
 import mujoco
 import pytest
 
+from mjlab.actuator import DcMotorActuatorCfg
 from mjlab.asset_zoo.robots import (
   get_custom_biped_robot_cfg,
   get_g1_robot_cfg,
   get_go1_robot_cfg,
+)
+from mjlab.asset_zoo.robots.custom_biped.biped_constants import (
+  HTDW4438_NO_LOAD_SPEED,
+  HTDW4438_RATED_TORQUE,
+  HTDW4438_STALL_TORQUE,
 )
 from mjlab.entity import Entity
 
@@ -39,3 +45,17 @@ def test_custom_biped_home_pose_is_bilaterally_symmetric() -> None:
       "ankle_joint",
     )
   ) == pytest.approx(0.0)
+
+
+def test_custom_biped_uses_htdw4438_motor_limits() -> None:
+  """All six drive joints should use the HTDW-4438-30 output ratings."""
+  articulation = get_custom_biped_robot_cfg().articulation
+  assert articulation is not None
+
+  actuators = articulation.actuators
+  assert len(actuators) == 3
+  for actuator in actuators:
+    assert isinstance(actuator, DcMotorActuatorCfg)
+    assert actuator.effort_limit == pytest.approx(HTDW4438_RATED_TORQUE)
+    assert actuator.saturation_effort == pytest.approx(HTDW4438_STALL_TORQUE)
+    assert actuator.velocity_limit == pytest.approx(HTDW4438_NO_LOAD_SPEED)

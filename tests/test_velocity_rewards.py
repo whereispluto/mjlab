@@ -296,8 +296,8 @@ def test_alternating_feet_reset_clears_selected_history():
   torch.testing.assert_close(result, torch.tensor([0.0, 1.0]))
 
 
-def test_alternating_feet_ignores_contact_jitter_after_short_air_time():
-  """A rapid contact toggle should not count as a gait-cycle landing."""
+def test_alternating_feet_penalizes_contact_jitter_after_short_air_time():
+  """A rapid contact toggle should be penalized, not exploited as a landing."""
   contact_sensor = MagicMock()
   contact_sensor.data.last_air_time = torch.tensor([[0.15, 0.15]])
   contact_sensor.compute_first_contact.side_effect = (
@@ -325,10 +325,20 @@ def test_alternating_feet_ignores_contact_jitter_after_short_air_time():
   reward(env, "feet", "twist", minimum_air_time=0.08, asset_cfg=asset_cfg)
   contact_sensor.data.last_air_time = torch.tensor([[0.15, 0.03]])
 
-  result = reward(env, "feet", "twist", minimum_air_time=0.08, asset_cfg=asset_cfg)
+  result = reward(
+    env,
+    "feet",
+    "twist",
+    minimum_air_time=0.08,
+    rapid_landing_penalty=0.5,
+    asset_cfg=asset_cfg,
+  )
 
-  torch.testing.assert_close(result, torch.zeros(1))
+  torch.testing.assert_close(result, torch.tensor([-0.5]))
   torch.testing.assert_close(reward.last_landing_foot, torch.tensor([0]))
+  torch.testing.assert_close(
+    env.extras["log"]["Metrics/rapid_landing_rate"], torch.tensor(1.0)
+  )
 
 
 def test_alternating_foot_lead_penalizes_stagnation_and_rewards_switch():

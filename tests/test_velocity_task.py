@@ -73,8 +73,13 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["pose"].params["std_walking"][r".*_knee_joint.*"] == 0.7
   assert cfg.rewards["pose"].params["std_walking"][r".*_ankle_joint.*"] == 1.0
   assert cfg.rewards["air_time"].weight == 0.8
+  assert cfg.rewards["air_time"].params["threshold_min"] == 0.2
   assert cfg.rewards["foot_slip"].weight == -0.5
+  assert cfg.rewards["action_rate_l2"].weight == -0.1
+  assert cfg.rewards["action_acc_l2"].weight == -0.05
   assert cfg.rewards["alternating_feet"].weight == 3.0
+  assert cfg.rewards["alternating_feet"].params["minimum_air_time"] == 0.25
+  assert cfg.rewards["alternating_feet"].params["rapid_landing_penalty"] == 1.0
   assert cfg.rewards["alternating_feet"].params["target_step_length"] == 0.08
   assert cfg.rewards["foot_lead_switch"].weight == 1.0
   assert cfg.rewards["foot_lead_switch"].params["maximum_stagnation_time"] == 0.6

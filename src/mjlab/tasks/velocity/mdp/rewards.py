@@ -305,6 +305,7 @@ class alternating_feet:
     target_step_length: float = 0.08,
     failed_step_penalty: float = 1.0,
     repeated_landing_penalty: float = 0.2,
+    rapid_landing_penalty: float = 0.5,
     asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
   ) -> torch.Tensor:
     assert target_step_length > minimum_step_length >= 0.0
@@ -330,6 +331,9 @@ class alternating_feet:
     repeated = (
       valid_landing & has_previous_landing & (landing_foot == self.last_landing_foot)
     )
+    rapid_landing = (
+      single_landing & has_previous_landing & (landing_air_time < minimum_air_time)
+    )
 
     foot_x = asset.data.site_pos_w[:, asset_cfg.site_ids, 0]
     assert foot_x.shape[1] == 2, (
@@ -351,6 +355,7 @@ class alternating_feet:
       step_progress * successful_step.float()
       - failed_step_penalty * failed_step.float()
       - repeated_landing_penalty * repeated.float()
+      - rapid_landing_penalty * rapid_landing.float()
     )
     command = env.command_manager.get_command(command_name)
     assert command is not None
@@ -366,6 +371,7 @@ class alternating_feet:
     env.extras["log"]["Metrics/successful_step_rate"] = torch.mean(
       successful_step.float()
     )
+    env.extras["log"]["Metrics/rapid_landing_rate"] = torch.mean(rapid_landing.float())
     alternating_count = torch.clamp(torch.sum(alternating.float()), min=1.0)
     env.extras["log"]["Metrics/landing_step_length_mean"] = (
       torch.sum(landing_step_length * alternating.float()) / alternating_count

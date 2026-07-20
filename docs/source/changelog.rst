@@ -65,9 +65,10 @@ Changed
   the stance foot, penalize prolonged failure to switch the leading foot,
   track periodic left/right foot-position, contact, swing-height, and symmetric
   joint-space targets, measure swing velocity relative to the stance foot, and
-  apply a stronger sole-flatness cost after heel strike. Its initial crouch is
-  now symmetric so the posture reward no longer favors keeping the left foot
-  permanently ahead.
+  apply stronger action-smoothing and sole-flatness costs. Rapid short-air-time
+  landings are penalized to prevent high-frequency foot tapping. Its initial
+  crouch is now symmetric so the posture reward no longer favors keeping the
+  left foot permanently ahead.
 - Retuned the custom biped no-linear-velocity task to discourage foot dragging
   and promote alternating forward swing from a stable crouched standing pose.
 - Custom biped no-linear-velocity training now starts with a conservative
