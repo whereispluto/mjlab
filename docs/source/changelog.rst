@@ -63,12 +63,13 @@ Changed
   ``base_x``, ``base_z``, and ``base_pitch`` joints.
 - Custom biped gait rewards now require each alternating landing foot to pass
   the stance foot, penalize prolonged failure to switch the leading foot,
-  track an observable periodic left/right foot-position target, measure swing
-  velocity relative to the stance foot, and encourage each sole to settle flat
-  after heel strike.
+  track periodic left/right foot-position, contact, swing-height, and symmetric
+  joint-space targets, measure swing velocity relative to the stance foot, and
+  apply a stronger sole-flatness cost after heel strike. Its initial crouch is
+  now symmetric so the posture reward no longer favors keeping the left foot
+  permanently ahead.
 - Retuned the custom biped no-linear-velocity task to discourage foot dragging
-  and promote alternating forward swing, while preserving its stable asymmetric
-  standing pose.
+  and promote alternating forward swing from a stable crouched standing pose.
 - Custom biped no-linear-velocity training now starts with a conservative
   nonzero forward-speed curriculum, disables reset height perturbation, strengthens
   forward-velocity learning, and replaces the per-step air-time reward with a

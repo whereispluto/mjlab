@@ -552,9 +552,10 @@ def feet_phase_alignment(
     -torch.ones_like(phase),
   )
   actual_separation = foot_x[:, 0] - foot_x[:, 1]
-  normalized_separation = torch.clamp(
-    actual_separation / target_step_length, min=-1.0, max=1.0
-  )
+  # A hard clamp has zero gradient once a foot is farther ahead than the target,
+  # which is exactly where a policy stuck in a split stance needs correction.
+  # Tanh keeps the reward bounded while retaining a smooth recovery gradient.
+  normalized_separation = torch.tanh(actual_separation / target_step_length)
   reward = desired_lead_sign * normalized_separation
 
   command = env.command_manager.get_command(command_name)
@@ -563,6 +564,159 @@ def feet_phase_alignment(
   reward *= (total_command > command_threshold).float()
   env.extras["log"]["Metrics/phase_lead_alignment"] = torch.mean(reward)
   return reward
+
+
+def feet_phase_contact(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  command_name: str,
+  cycle_time: float,
+  command_threshold: float = 0.05,
+) -> torch.Tensor:
+  """Reward phase-scheduled single support with smooth transition windows.
+
+  During the first half-cycle the left foot supports while the right foot
+  swings; the roles reverse during the second half-cycle. Multiplying the
+  contact difference by a sine clock makes the reward vanish at phase
+  transitions, allowing a short, natural double-support period around landing.
+  """
+  assert cycle_time > 0.0
+  contact_sensor: ContactSensor = env.scene[sensor_name]
+  assert contact_sensor.data.found is not None
+  in_contact = contact_sensor.data.found > 0
+  assert in_contact.shape[1] == 2, (
+    "feet_phase_contact requires a contact sensor with exactly two feet"
+  )
+
+  phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  support_clock = torch.sin(phase)
+  contact_difference = in_contact[:, 0].float() - in_contact[:, 1].float()
+  alignment = support_clock * contact_difference
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  active = total_command > command_threshold
+  reward = alignment * active.float()
+
+  scheduled_single_support = alignment > 0.0
+  env.extras["log"]["Metrics/phase_contact_alignment"] = torch.mean(reward)
+  env.extras["log"]["Metrics/scheduled_single_support_rate"] = torch.mean(
+    (scheduled_single_support & active).float()
+  )
+  env.extras["log"]["Metrics/left_contact_rate"] = torch.mean(in_contact[:, 0].float())
+  env.extras["log"]["Metrics/right_contact_rate"] = torch.mean(in_contact[:, 1].float())
+  return reward
+
+
+def feet_phase_height(
+  env: ManagerBasedRlEnv,
+  height_sensor_name: str,
+  command_name: str,
+  cycle_time: float,
+  target_height: float,
+  maximum_error_scale: float = 2.0,
+  command_threshold: float = 0.05,
+) -> torch.Tensor:
+  """Track alternating sinusoidal swing-foot clearance targets."""
+  assert cycle_time > 0.0
+  assert target_height > 0.0
+  assert maximum_error_scale >= 1.0
+  height_sensor = env.scene[height_sensor_name]
+  assert isinstance(height_sensor, TerrainHeightSensor), (
+    f"feet_phase_height requires a TerrainHeightSensor, "
+    f"got {type(height_sensor).__name__}"
+  )
+  foot_height = height_sensor.data.heights
+  assert foot_height.shape[1] == 2, (
+    "feet_phase_height requires exactly two ordered foot heights"
+  )
+
+  phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  support_clock = torch.sin(phase)
+  swing_weight = torch.stack(
+    (torch.clamp(-support_clock, min=0.0), torch.clamp(support_clock, min=0.0)),
+    dim=1,
+  )
+  target = target_height * swing_weight
+  normalized_error = torch.clamp(
+    torch.abs(foot_height - target) / target_height,
+    min=0.0,
+    max=maximum_error_scale,
+  )
+  cost = torch.sum(torch.square(normalized_error), dim=1)
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  active = total_command > command_threshold
+  cost *= active.float()
+  env.extras["log"]["Metrics/phase_foot_height_error"] = torch.mean(
+    torch.abs(foot_height - target)
+  )
+  env.extras["log"]["Metrics/left_foot_height_mean"] = torch.mean(foot_height[:, 0])
+  env.extras["log"]["Metrics/right_foot_height_mean"] = torch.mean(foot_height[:, 1])
+  return cost
+
+
+def joints_phase_position(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  cycle_time: float,
+  hip_amplitude: float,
+  knee_amplitude: float,
+  tolerance: float,
+  maximum_error_scale: float = 2.0,
+  command_threshold: float = 0.05,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+) -> torch.Tensor:
+  """Track a symmetric joint-space reference for alternating flat-foot steps."""
+  assert cycle_time > 0.0
+  assert hip_amplitude > 0.0
+  assert knee_amplitude > 0.0
+  assert tolerance > 0.0
+  assert maximum_error_scale >= 1.0
+  asset: Entity = env.scene[asset_cfg.name]
+  joint_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
+  default_joint_pos = asset.data.default_joint_pos[:, asset_cfg.joint_ids]
+  assert joint_pos.shape[1] == 6, (
+    "joints_phase_position requires ordered left and right hip, knee, ankle joints"
+  )
+
+  phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  lead_clock = torch.cos(phase)
+  support_clock = torch.sin(phase)
+  left_swing = torch.clamp(-support_clock, min=0.0)
+  right_swing = torch.clamp(support_clock, min=0.0)
+
+  target = default_joint_pos.clone()
+  left_hip_delta = hip_amplitude * lead_clock
+  right_hip_delta = -left_hip_delta
+  left_knee_delta = -knee_amplitude * left_swing
+  right_knee_delta = -knee_amplitude * right_swing
+  target[:, 0] += left_hip_delta
+  target[:, 1] += left_knee_delta
+  target[:, 2] -= left_hip_delta + left_knee_delta
+  target[:, 3] += right_hip_delta
+  target[:, 4] += right_knee_delta
+  target[:, 5] -= right_hip_delta + right_knee_delta
+
+  normalized_error = torch.clamp(
+    torch.abs(joint_pos - target) / tolerance,
+    min=0.0,
+    max=maximum_error_scale,
+  )
+  cost = torch.mean(torch.square(normalized_error), dim=1)
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
+  active = total_command > command_threshold
+  cost *= active.float()
+  env.extras["log"]["Metrics/phase_joint_position_error"] = torch.mean(
+    torch.abs(joint_pos - target)
+  )
+  return cost
 
 
 def feet_swing_forward_velocity(
@@ -633,7 +787,7 @@ def feet_contact_flatness(
   local_forward = torch.zeros_like(foot_quat_w[..., :3])
   local_forward[..., 0] = 1.0
   forward_axis_w = quat_apply(foot_quat_w, local_forward)
-  pitch_error = torch.square(forward_axis_w[..., 2])
+  pitch_error = torch.abs(forward_axis_w[..., 2])
   settled_contact = current_contact_time >= settle_time
   cost = torch.sum(pitch_error * settled_contact.float(), dim=1)
 
@@ -646,7 +800,7 @@ def feet_contact_flatness(
     contact_mask = settled_contact[:, foot_id].float()
     num_contacts = torch.clamp(torch.sum(contact_mask), min=1.0)
     env.extras["log"][f"Metrics/{foot_name}_foot_pitch_error"] = (
-      torch.sum(torch.sqrt(pitch_error[:, foot_id]) * contact_mask) / num_contacts
+      torch.sum(pitch_error[:, foot_id] * contact_mask) / num_contacts
     )
   return cost
 

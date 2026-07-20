@@ -2,8 +2,8 @@ from mjlab.tasks.registry import register_mjlab_task
 from mjlab.tasks.velocity.rl import VelocityOnPolicyRunner
 
 from .env_cfgs import (
-  unitree_g1_flat_forward_env_cfg,
   unitree_g1_flat_env_cfg,
+  unitree_g1_flat_forward_env_cfg,
   unitree_g1_rough_env_cfg,
 )
 from .rl_cfg import unitree_g1_ppo_runner_cfg

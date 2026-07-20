@@ -11,7 +11,7 @@ import torch
 
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
-from mjlab.sensor import RayCastData, RayCastSensor
+from mjlab.sensor import RayCastData, RayCastSensor, TerrainHeightSensor
 from mjlab.tasks.velocity.mdp.observations import gait_phase
 from mjlab.tasks.velocity.mdp.rewards import (
   alternating_feet,
@@ -19,8 +19,11 @@ from mjlab.tasks.velocity.mdp.rewards import (
   both_feet_contact,
   feet_contact_flatness,
   feet_phase_alignment,
+  feet_phase_contact,
+  feet_phase_height,
   feet_phase_position,
   feet_swing_forward_velocity,
+  joints_phase_position,
   upright,
 )
 from mjlab.utils.lab_api.math import quat_from_euler_xyz
@@ -480,7 +483,167 @@ def test_feet_phase_alignment_requires_lead_direction_to_switch():
     asset_cfg=asset_cfg,
   )
 
-  torch.testing.assert_close(result, torch.tensor([1.0, 1.0, -1.0]))
+  expected_magnitude = math.tanh(1.0)
+  torch.testing.assert_close(
+    result,
+    torch.tensor([expected_magnitude, expected_magnitude, -expected_magnitude]),
+  )
+
+
+def test_feet_phase_alignment_retains_gradient_beyond_target_step_length():
+  """A split stance beyond the target must remain recoverable by optimization."""
+  actual_separation = torch.tensor(0.12, requires_grad=True)
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_pos_w=torch.stack(
+        (
+          torch.stack((actual_separation / 2, torch.tensor(0.0), torch.tensor(0.0))),
+          torch.stack((-actual_separation / 2, torch.tensor(0.0), torch.tensor(0.0))),
+        )
+      ).unsqueeze(0)
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]])
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([0]),
+      step_dt=0.25,
+      scene={"robot": asset},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  result = feet_phase_alignment(
+    env,
+    command_name="twist",
+    cycle_time=1.0,
+    target_step_length=0.06,
+    asset_cfg=asset_cfg,
+  )
+  result.sum().backward()
+
+  assert actual_separation.grad is not None
+  assert actual_separation.grad > 0.0
+
+
+def test_feet_phase_contact_schedules_opposite_single_support():
+  """Contact roles should swap between the two halves of the gait cycle."""
+  contact_sensor = SimpleNamespace(
+    data=SimpleNamespace(found=torch.tensor([[1, 0], [0, 1], [0, 1], [1, 0]]))
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor(
+    [[0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.0, 0.0, 0.0]]
+  )
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([1, 1, 3, 1]),
+      step_dt=0.25,
+      scene={"feet": contact_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+
+  result = feet_phase_contact(
+    env,
+    sensor_name="feet",
+    command_name="twist",
+    cycle_time=1.0,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([1.0, -1.0, 1.0, 0.0]))
+  torch.testing.assert_close(
+    env.extras["log"]["Metrics/scheduled_single_support_rate"],
+    torch.tensor(0.5),
+  )
+
+
+def test_feet_phase_height_schedules_opposite_swing_clearance():
+  """Only the phase-scheduled swing foot should reach target clearance."""
+  height_sensor = MagicMock(spec=TerrainHeightSensor)
+  height_sensor.data.heights = torch.tensor(
+    [[0.0, 0.04], [0.04, 0.0], [0.04, 0.0], [0.04, 0.0]]
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor(
+    [[0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.2, 0.0, 0.0], [0.0, 0.0, 0.0]]
+  )
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([1, 1, 3, 1]),
+      step_dt=0.25,
+      scene={"height": height_sensor},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+
+  result = feet_phase_height(
+    env,
+    height_sensor_name="height",
+    command_name="twist",
+    cycle_time=1.0,
+    target_height=0.04,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([0.0, 2.0, 0.0, 0.0]))
+
+
+def test_joints_phase_position_tracks_opposite_hip_and_swing_targets():
+  """Joint targets should alternate the leading hip and flex the swing knee."""
+  target_at_start = [0.1, 0.0, -0.1, -0.1, 0.0, 0.1]
+  target_at_quarter_cycle = [0.0, 0.0, 0.0, 0.0, -0.2, 0.2]
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      joint_pos=torch.tensor([target_at_start, [0.0] * 6, target_at_quarter_cycle]),
+      default_joint_pos=torch.zeros(3, 6),
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 3)
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.tensor([0, 0, 1]),
+      step_dt=0.25,
+      scene={"robot": asset},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg(
+    "robot",
+    joint_names=(
+      "left_hip",
+      "left_knee",
+      "left_ankle",
+      "right_hip",
+      "right_knee",
+      "right_ankle",
+    ),
+    joint_ids=list(range(6)),
+  )
+
+  result = joints_phase_position(
+    env,
+    command_name="twist",
+    cycle_time=1.0,
+    hip_amplitude=0.1,
+    knee_amplitude=0.2,
+    tolerance=0.1,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(
+    result, torch.tensor([0.0, 2.0 / 3.0, 0.0]), atol=1e-6, rtol=0
+  )
 
 
 def test_feet_swing_forward_velocity_is_bounded_and_command_gated():
@@ -560,7 +723,7 @@ def test_feet_contact_flatness_allows_heel_strike_then_penalizes_pitch():
     asset_cfg=asset_cfg,
   )
 
-  torch.testing.assert_close(result, torch.tensor([0.25, 0.0, 0.0]), atol=1e-6, rtol=0)
+  torch.testing.assert_close(result, torch.tensor([0.5, 0.0, 0.0]), atol=1e-6, rtol=0)
 
 
 def test_both_feet_contact_is_command_gated():

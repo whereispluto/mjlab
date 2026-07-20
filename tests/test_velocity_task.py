@@ -74,14 +74,21 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["pose"].params["std_walking"][r".*_ankle_joint.*"] == 1.0
   assert cfg.rewards["air_time"].weight == 0.8
   assert cfg.rewards["foot_slip"].weight == -0.5
-  assert cfg.rewards["alternating_feet"].weight == 2.0
+  assert cfg.rewards["alternating_feet"].weight == 3.0
   assert cfg.rewards["alternating_feet"].params["target_step_length"] == 0.08
-  assert cfg.rewards["foot_lead_switch"].weight == 0.5
+  assert cfg.rewards["foot_lead_switch"].weight == 1.0
   assert cfg.rewards["foot_lead_switch"].params["maximum_stagnation_time"] == 0.6
-  assert cfg.rewards["foot_lead_switch"].params["maximum_penalty_scale"] == 1.0
-  assert cfg.rewards["phase_foot_position"].weight == -0.5
+  assert cfg.rewards["foot_lead_switch"].params["maximum_penalty_scale"] == 2.0
+  assert cfg.rewards["phase_foot_position"].weight == -1.0
   assert cfg.rewards["phase_foot_position"].params["cycle_time"] == 1.0
-  assert cfg.rewards["phase_foot_alignment"].weight == 2.0
+  assert cfg.rewards["phase_foot_alignment"].weight == 4.0
+  assert cfg.rewards["phase_foot_contact"].weight == 4.0
+  assert cfg.rewards["phase_foot_contact"].params["cycle_time"] == 1.0
+  assert cfg.rewards["phase_foot_height"].weight == -2.0
+  assert cfg.rewards["phase_foot_height"].params["target_height"] == 0.04
+  assert cfg.rewards["phase_joint_position"].weight == -3.0
+  assert cfg.rewards["phase_joint_position"].params["hip_amplitude"] == 0.12
+  assert cfg.rewards["phase_joint_position"].params["tolerance"] == 0.2
   assert cfg.rewards["termination_penalty"].weight == -200.0
   assert cfg.rewards["alive"].weight == 1.0
   assert "gait_phase" in cfg.observations["actor"].terms
@@ -109,7 +116,7 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert "asset_cfg" not in critic_terms["joint_vel"].params
   assert critic_terms["joint_vel"].history_length == 4
   assert cfg.rewards["swing_forward_velocity"].weight == 1.0
-  assert cfg.rewards["foot_flatness"].weight == -2.0
+  assert cfg.rewards["foot_flatness"].weight == -3.0
   assert cfg.rewards["both_feet_contact"].weight == -0.2
 
 

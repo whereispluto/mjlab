@@ -309,7 +309,7 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.rewards["foot_slip"].weight = -0.5
     cfg.rewards["alternating_feet"] = RewardTermCfg(
       func=mdp.alternating_feet,
-      weight=2.0,
+      weight=3.0,
       params={
         "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
@@ -324,20 +324,20 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["foot_lead_switch"] = RewardTermCfg(
       func=mdp.alternating_foot_lead,
-      weight=0.5,
+      weight=1.0,
       params={
         "command_name": "twist",
         "minimum_lead": 0.02,
         "maximum_stagnation_time": 0.6,
         "stagnation_penalty": 0.5,
-        "maximum_penalty_scale": 1.0,
+        "maximum_penalty_scale": 2.0,
         "command_threshold": 0.05,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
       },
     )
     cfg.rewards["phase_foot_position"] = RewardTermCfg(
       func=mdp.feet_phase_position,
-      weight=-0.5,
+      weight=-1.0,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
@@ -350,13 +350,51 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_foot_alignment"] = RewardTermCfg(
       func=mdp.feet_phase_alignment,
-      weight=2.0,
+      weight=4.0,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
         "target_step_length": 0.06,
         "command_threshold": 0.05,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
+      },
+    )
+    cfg.rewards["phase_foot_contact"] = RewardTermCfg(
+      func=mdp.feet_phase_contact,
+      weight=4.0,
+      params={
+        "sensor_name": feet_ground_cfg.name,
+        "command_name": "twist",
+        "cycle_time": 1.0,
+        "command_threshold": 0.05,
+      },
+    )
+    cfg.rewards["phase_foot_height"] = RewardTermCfg(
+      func=mdp.feet_phase_height,
+      weight=-2.0,
+      params={
+        "height_sensor_name": "foot_height_scan",
+        "command_name": "twist",
+        "cycle_time": 1.0,
+        "target_height": 0.04,
+        "maximum_error_scale": 2.0,
+        "command_threshold": 0.05,
+      },
+    )
+    cfg.rewards["phase_joint_position"] = RewardTermCfg(
+      func=mdp.joints_phase_position,
+      weight=-3.0,
+      params={
+        "command_name": "twist",
+        "cycle_time": 1.0,
+        "hip_amplitude": 0.12,
+        "knee_amplitude": 0.25,
+        "tolerance": 0.2,
+        "maximum_error_scale": 2.0,
+        "command_threshold": 0.05,
+        "asset_cfg": SceneEntityCfg(
+          "robot", joint_names=actuated_joint_names, preserve_order=True
+        ),
       },
     )
     cfg.rewards["swing_forward_velocity"] = RewardTermCfg(
@@ -372,7 +410,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["foot_flatness"] = RewardTermCfg(
       func=mdp.feet_contact_flatness,
-      weight=-2.0,
+      weight=-3.0,
       params={
         "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
