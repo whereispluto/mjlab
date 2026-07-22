@@ -58,6 +58,8 @@ Added
 Changed
 ^^^^^^^
 
+- The ``play`` command now accepts ``--command-x`` to run velocity policies with a
+  deterministic forward-only speed in both native and Viser viewers.
 - Custom biped no-linear-velocity actor observations now restrict joint position
   and velocity history to the six actuated leg joints, excluding the planar
   ``base_x``, ``base_z``, and ``base_pitch`` joints.

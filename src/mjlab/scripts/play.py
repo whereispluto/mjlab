@@ -5,17 +5,19 @@ import sys
 import time as _time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from math import isfinite
 from pathlib import Path
 from typing import Literal
 
 import torch
 import tyro
 
-from mjlab.envs import ManagerBasedRlEnv
+from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
 from mjlab.rl import MjlabOnPolicyRunner, RslRlVecEnvWrapper
 from mjlab.scripts._cli import maybe_print_top_level_help
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
+from mjlab.tasks.velocity.mdp import UniformVelocityCommandCfg
 from mjlab.utils.os import get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
 from mjlab.utils.wrappers import VideoRecorder
@@ -47,6 +49,8 @@ class PlayConfig:
   video_width: int | None = None
   camera: int | str | None = None
   viewer: Literal["auto", "native", "viser"] = "auto"
+  command_x: float | None = None
+  """Fixed forward-only velocity command in m/s for velocity tasks."""
   no_terminations: bool = False
   """Disable all termination conditions (useful for viewing motions with dummy agents)."""
   log_root: str = "logs/rsl_rl"
@@ -56,6 +60,30 @@ class PlayConfig:
   _demo_mode: tyro.conf.Suppress[bool] = False
 
 
+def _apply_velocity_command_override(
+  env_cfg: ManagerBasedRlEnvCfg, command_x: float | None
+) -> None:
+  """Apply a deterministic forward-only velocity command for play mode."""
+  if command_x is None:
+    return
+  if not isfinite(command_x):
+    raise ValueError("--command-x must be a finite number")
+
+  twist_cmd = env_cfg.commands.get("twist")
+  if not isinstance(twist_cmd, UniformVelocityCommandCfg):
+    raise ValueError("--command-x is only supported by tasks with a twist command")
+
+  twist_cmd.ranges.lin_vel_x = (command_x, command_x)
+  twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
+  twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
+  twist_cmd.ranges.heading = None
+  twist_cmd.heading_command = False
+  twist_cmd.rel_standing_envs = 0.0
+  twist_cmd.rel_heading_envs = 0.0
+  twist_cmd.rel_world_envs = 0.0
+  twist_cmd.rel_forward_envs = 0.0
+
+
 def run_play(task_id: str, cfg: PlayConfig):
   configure_torch_backends()
 
@@ -63,6 +91,9 @@ def run_play(task_id: str, cfg: PlayConfig):
 
   env_cfg = load_env_cfg(task_id, play=True)
   agent_cfg = load_rl_cfg(task_id)
+  _apply_velocity_command_override(env_cfg, cfg.command_x)
+  if cfg.command_x is not None:
+    print(f"[INFO]: Fixed forward velocity command: {cfg.command_x:g} m/s")
 
   DUMMY_MODE = cfg.agent in {"zero", "random"}
   TRAINED_MODE = not DUMMY_MODE
