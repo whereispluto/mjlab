@@ -28,10 +28,10 @@ HTDW4438_RATED_OUTPUT_POWER = 8.5  # W
 # PD gains are therefore explicit controller settings, shared with the STM32 true
 # motion-control mode, and still need validation on a suspended joint.
 HTDW4438_REFLECTED_INERTIA_ESTIMATE = 0.01  # kg m^2; pending identification
-# These values map exactly to the M4438_30 int16 protocol gain codes (3020, 240),
-# avoiding a small sim/firmware mismatch from protocol quantization.
-HTDW4438_POSITION_STIFFNESS = 25.2628551029  # Kp, N m/rad
-HTDW4438_POSITION_DAMPING = 2.0076441141  # Kd, N m s/rad
+# Calling the firmware with Kp=Kd=1.0 maps to M4438_30 int16 gain codes (19, 19).
+# These are the equivalent output-side gains after protocol quantization.
+HTDW4438_POSITION_STIFFNESS = 0.15893849236929034  # Kp, N m/rad
+HTDW4438_POSITION_DAMPING = 0.15893849236929034  # Kd, N m s/rad
 
 CUSTOM_BIPED_ACTUATOR_LEG = DcMotorActuatorCfg(
   target_names_expr=(".*_leg_joint",),
