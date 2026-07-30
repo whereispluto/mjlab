@@ -24,6 +24,23 @@ if TYPE_CHECKING:
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
 
 
+def _command_scale(
+  command: torch.Tensor,
+  reference_velocity: float | None,
+  *,
+  minimum: float = 0.25,
+  maximum: float = 1.5,
+) -> torch.Tensor:
+  if reference_velocity is None:
+    return torch.ones_like(command[:, 0])
+  assert reference_velocity > 0.0
+  return torch.clamp(
+    torch.abs(command[:, 0]) / reference_velocity,
+    min=minimum,
+    max=maximum,
+  )
+
+
 def track_linear_velocity(
   env: ManagerBasedRlEnv,
   std: float,
@@ -59,7 +76,44 @@ def track_planar_joint_velocity(
   x_error = torch.square(command[:, 0] - planar_velocity[:, 0])
   y_error = torch.square(command[:, 1])
   z_error = torch.square(planar_velocity[:, 1])
+  absolute_x_error = torch.abs(command[:, 0] - planar_velocity[:, 0])
+  env.extras["log"]["Metrics/command_velocity_x_mean"] = torch.mean(command[:, 0])
+  env.extras["log"]["Metrics/actual_velocity_x_mean"] = torch.mean(
+    planar_velocity[:, 0]
+  )
+  env.extras["log"]["Metrics/velocity_x_absolute_error"] = torch.mean(absolute_x_error)
+  for speed in (0.1, 0.2, 0.3, 0.4):
+    mask = torch.abs(command[:, 0] - speed) < 0.05
+    if torch.any(mask):
+      env.extras["log"][f"Metrics/velocity_x_mae_{speed:.1f}"] = torch.mean(
+        absolute_x_error[mask]
+      )
   return torch.exp(-(x_error + y_error + z_error) / std**2)
+
+
+def planar_joint_velocity_error(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  beta: float,
+  vertical_velocity_weight: float,
+  asset_cfg: SceneEntityCfg,
+) -> torch.Tensor:
+  """Symmetric velocity cost that keeps a gradient for under- and overspeeding."""
+  assert beta > 0.0
+  assert vertical_velocity_weight >= 0.0
+  asset: Entity = env.scene[asset_cfg.name]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None, f"Command '{command_name}' not found."
+  planar_velocity = asset.data.joint_vel[:, asset_cfg.joint_ids]
+  assert planar_velocity.shape[1] == 2, "Expected ordered base x and z joints."
+  forward_error = torch.nn.functional.smooth_l1_loss(
+    planar_velocity[:, 0],
+    command[:, 0],
+    reduction="none",
+    beta=beta,
+  )
+  vertical_error = torch.abs(planar_velocity[:, 1])
+  return forward_error + vertical_velocity_weight * vertical_error
 
 
 def forward_velocity(
@@ -499,6 +553,7 @@ def feet_phase_position(
   cycle_time: float,
   target_step_length: float,
   tolerance: float,
+  reference_velocity: float | None = None,
   maximum_error_scale: float = 2.0,
   command_threshold: float = 0.05,
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
@@ -515,7 +570,10 @@ def feet_phase_position(
   )
 
   phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
-  target_separation = target_step_length * torch.cos(phase)
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  speed_scale = _command_scale(command, reference_velocity)
+  target_separation = target_step_length * speed_scale * torch.cos(phase)
   actual_separation = foot_x[:, 0] - foot_x[:, 1]
   tracking_error = torch.abs(actual_separation - target_separation)
   normalized_error = torch.clamp(
@@ -523,8 +581,6 @@ def feet_phase_position(
   )
   cost = torch.square(normalized_error)
 
-  command = env.command_manager.get_command(command_name)
-  assert command is not None
   total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
   cost *= (total_command > command_threshold).float()
   env.extras["log"]["Metrics/phase_foot_separation_error"] = torch.mean(tracking_error)
@@ -539,6 +595,7 @@ def feet_phase_alignment(
   command_name: str,
   cycle_time: float,
   target_step_length: float,
+  reference_velocity: float | None = None,
   command_threshold: float = 0.05,
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
 ) -> torch.Tensor:
@@ -558,14 +615,15 @@ def feet_phase_alignment(
     -torch.ones_like(phase),
   )
   actual_separation = foot_x[:, 0] - foot_x[:, 1]
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  target_separation = target_step_length * _command_scale(command, reference_velocity)
   # A hard clamp has zero gradient once a foot is farther ahead than the target,
   # which is exactly where a policy stuck in a split stance needs correction.
   # Tanh keeps the reward bounded while retaining a smooth recovery gradient.
-  normalized_separation = torch.tanh(actual_separation / target_step_length)
+  normalized_separation = torch.tanh(actual_separation / target_separation)
   reward = desired_lead_sign * normalized_separation
 
-  command = env.command_manager.get_command(command_name)
-  assert command is not None
   total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
   reward *= (total_command > command_threshold).float()
   env.extras["log"]["Metrics/phase_lead_alignment"] = torch.mean(reward)
@@ -670,6 +728,7 @@ def feet_phase_swing_velocity(
   command_name: str,
   cycle_time: float,
   target_velocity: float,
+  reference_velocity: float | None = None,
   command_threshold: float = 0.05,
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
 ) -> torch.Tensor:
@@ -694,13 +753,14 @@ def feet_phase_swing_velocity(
     dim=1,
   )
   relative_velocity = foot_velocity_x - torch.flip(foot_velocity_x, dims=(1,))
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  scaled_target_velocity = target_velocity * _command_scale(command, reference_velocity)
   normalized_velocity = torch.clamp(
-    relative_velocity / target_velocity, min=-1.0, max=1.0
+    relative_velocity / scaled_target_velocity.unsqueeze(1), min=-1.0, max=1.0
   )
   reward = torch.sum(normalized_velocity * swing_weight, dim=1)
 
-  command = env.command_manager.get_command(command_name)
-  assert command is not None
   total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
   active = total_command > command_threshold
   reward *= active.float()
@@ -726,6 +786,7 @@ def joints_phase_position(
   hip_amplitude: float,
   knee_amplitude: float,
   tolerance: float,
+  reference_velocity: float | None = None,
   maximum_error_scale: float = 2.0,
   command_threshold: float = 0.05,
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
@@ -744,16 +805,19 @@ def joints_phase_position(
   )
 
   phase = 2.0 * torch.pi * env.episode_length_buf.float() * env.step_dt / cycle_time
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+  speed_scale = _command_scale(command, reference_velocity)
   lead_clock = torch.cos(phase)
   support_clock = torch.sin(phase)
   left_swing = torch.clamp(-support_clock, min=0.0)
   right_swing = torch.clamp(support_clock, min=0.0)
 
   target = default_joint_pos.clone()
-  left_hip_delta = hip_amplitude * lead_clock
+  left_hip_delta = hip_amplitude * speed_scale * lead_clock
   right_hip_delta = -left_hip_delta
-  left_knee_delta = -knee_amplitude * left_swing
-  right_knee_delta = -knee_amplitude * right_swing
+  left_knee_delta = -knee_amplitude * speed_scale * left_swing
+  right_knee_delta = -knee_amplitude * speed_scale * right_swing
   target[:, 0] += left_hip_delta
   target[:, 1] += left_knee_delta
   target[:, 2] -= left_hip_delta + left_knee_delta
@@ -768,8 +832,6 @@ def joints_phase_position(
   )
   cost = torch.mean(torch.square(normalized_error), dim=1)
 
-  command = env.command_manager.get_command(command_name)
-  assert command is not None
   total_command = torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
   active = total_command > command_threshold
   cost *= active.float()

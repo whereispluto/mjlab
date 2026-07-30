@@ -283,29 +283,33 @@ def _custom_biped_flat_forward_env_cfg(
       r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.1,
     }
     cfg.rewards["track_linear_velocity"].func = mdp.track_planar_joint_velocity
-    cfg.rewards["track_linear_velocity"].weight = 2.0
-    cfg.rewards["track_linear_velocity"].params["std"] = 0.2
+    cfg.rewards["track_linear_velocity"].weight = 4.0
+    cfg.rewards["track_linear_velocity"].params["std"] = 0.15
     cfg.rewards["track_linear_velocity"].params["asset_cfg"] = SceneEntityCfg(
       "robot",
       joint_names=("base_x", "base_z"),
       preserve_order=True,
     )
-    cfg.rewards["forward_velocity"] = RewardTermCfg(
-      func=mdp.forward_velocity,
-      weight=1.5,
+    cfg.rewards["velocity_error"] = RewardTermCfg(
+      func=mdp.planar_joint_velocity_error,
+      weight=-4.0,
       params={
         "command_name": "twist",
-        "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
+        "beta": 0.1,
+        "vertical_velocity_weight": 0.25,
+        "asset_cfg": SceneEntityCfg(
+          "robot", joint_names=("base_x", "base_z"), preserve_order=True
+        ),
       },
     )
-    cfg.rewards["action_rate_l2"].weight = -0.1
+    cfg.rewards["action_rate_l2"].weight = -0.02
     cfg.rewards["action_acc_l2"] = RewardTermCfg(
       func=mdp.action_acc_l2,
-      weight=-0.05,
+      weight=-0.01,
     )
     cfg.rewards["motor_effort_l2"] = RewardTermCfg(
       func=mdp.joint_torques_l2,
-      weight=-0.02,
+      weight=-0.005,
       params={"asset_cfg": SceneEntityCfg("robot")},
     )
     cfg.rewards["air_time"].weight = 0.8
@@ -318,7 +322,7 @@ def _custom_biped_flat_forward_env_cfg(
     cfg.rewards["foot_slip"].weight = -0.5
     cfg.rewards["alternating_feet"] = RewardTermCfg(
       func=mdp.alternating_feet,
-      weight=3.0,
+      weight=1.5,
       params={
         "sensor_name": feet_ground_cfg.name,
         "command_name": "twist",
@@ -334,7 +338,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["foot_lead_switch"] = RewardTermCfg(
       func=mdp.alternating_foot_lead,
-      weight=1.0,
+      weight=0.25,
       params={
         "command_name": "twist",
         "minimum_lead": 0.02,
@@ -347,11 +351,12 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_foot_position"] = RewardTermCfg(
       func=mdp.feet_phase_position,
-      weight=-1.5,
+      weight=-0.5,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
         "target_step_length": 0.06,
+        "reference_velocity": 0.3,
         "tolerance": 0.12,
         "maximum_error_scale": 2.0,
         "command_threshold": 0.05,
@@ -360,11 +365,12 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_foot_alignment"] = RewardTermCfg(
       func=mdp.feet_phase_alignment,
-      weight=6.0,
+      weight=2.0,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
         "target_step_length": 0.06,
+        "reference_velocity": 0.3,
         "command_threshold": 0.05,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
       },
@@ -393,12 +399,13 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["phase_joint_position"] = RewardTermCfg(
       func=mdp.joints_phase_position,
-      weight=-1.5,
+      weight=-0.5,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
         "hip_amplitude": 0.12,
         "knee_amplitude": 0.25,
+        "reference_velocity": 0.3,
         "tolerance": 0.2,
         "maximum_error_scale": 2.0,
         "command_threshold": 0.05,
@@ -409,12 +416,13 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["swing_forward_velocity"] = RewardTermCfg(
       func=mdp.feet_phase_swing_velocity,
-      weight=2.0,
+      weight=1.0,
       params={
         "command_name": "twist",
         "cycle_time": 1.0,
         "command_threshold": 0.05,
         "target_velocity": 0.3,
+        "reference_velocity": 0.3,
         "asset_cfg": SceneEntityCfg("robot", site_names=site_names),
       },
     )
@@ -447,9 +455,9 @@ def _custom_biped_flat_forward_env_cfg(
       weight=1.0,
     )
     cfg.curriculum["command_vel"].params["velocity_stages"] = [
-      {"step": 0, "lin_vel_x": (0.1, 0.2), "ang_vel_z": (0.0, 0.0)},
-      {"step": 5000 * 24, "lin_vel_x": (0.1, 0.3), "ang_vel_z": (0.0, 0.0)},
-      {"step": 10000 * 24, "lin_vel_x": (0.1, 0.4), "ang_vel_z": (0.0, 0.0)},
+      {"step": 0, "lin_vel_x": (0.12, 0.18), "ang_vel_z": (0.0, 0.0)},
+      {"step": 10000 * 24, "lin_vel_x": (0.1, 0.25), "ang_vel_z": (0.0, 0.0)},
+      {"step": 20000 * 24, "lin_vel_x": (0.1, 0.4), "ang_vel_z": (0.0, 0.0)},
     ]
     twist_cmd.ranges.lin_vel_x = (0.1, 0.4)
 

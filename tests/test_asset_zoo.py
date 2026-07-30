@@ -8,6 +8,8 @@ from mjlab.asset_zoo.robots import (
   get_go1_robot_cfg,
 )
 from mjlab.asset_zoo.robots.custom_biped.biped_constants import (
+  CUSTOM_BIPED_ACTION_SCALE,
+  CUSTOM_BIPED_POLICY_EFFORT_FRACTION,
   HTDW4438_NO_LOAD_SPEED,
   HTDW4438_POSITION_DAMPING,
   HTDW4438_POSITION_STIFFNESS,
@@ -63,3 +65,10 @@ def test_custom_biped_uses_htdw4438_motor_limits() -> None:
     assert actuator.velocity_limit == pytest.approx(HTDW4438_NO_LOAD_SPEED)
     assert actuator.stiffness == pytest.approx(HTDW4438_POSITION_STIFFNESS)
     assert actuator.damping == pytest.approx(HTDW4438_POSITION_DAMPING)
+
+
+def test_custom_biped_action_scale_exposes_continuous_effort_authority() -> None:
+  """Position actions should remain useful with the real low controller gain."""
+  expected_effort = HTDW4438_RATED_TORQUE * CUSTOM_BIPED_POLICY_EFFORT_FRACTION
+  for scale in CUSTOM_BIPED_ACTION_SCALE.values():
+    assert HTDW4438_POSITION_STIFFNESS * scale == pytest.approx(expected_effort)

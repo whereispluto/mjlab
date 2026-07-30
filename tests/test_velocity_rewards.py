@@ -25,6 +25,7 @@ from mjlab.tasks.velocity.mdp.rewards import (
   feet_phase_swing_velocity,
   feet_swing_forward_velocity,
   joints_phase_position,
+  planar_joint_velocity_error,
   upright,
 )
 from mjlab.utils.lab_api.math import quat_from_euler_xyz
@@ -457,6 +458,71 @@ def test_feet_phase_position_rewards_alternating_lead_targets():
   )
 
   torch.testing.assert_close(result, torch.tensor([0.0, 0.0, 1.0]))
+
+
+def test_feet_phase_position_scales_stride_with_forward_command():
+  asset = SimpleNamespace(
+    data=SimpleNamespace(
+      site_pos_w=torch.tensor(
+        [
+          [[0.01, 0.0, 0.0], [-0.01, 0.0, 0.0]],
+          [[0.04, 0.0, 0.0], [-0.04, 0.0, 0.0]],
+        ]
+      )
+    )
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor(
+    [[0.1, 0.0, 0.0], [0.4, 0.0, 0.0]]
+  )
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(
+      episode_length_buf=torch.zeros(2, dtype=torch.long),
+      step_dt=0.02,
+      scene={"robot": asset},
+      command_manager=command_manager,
+      extras={"log": {}},
+    ),
+  )
+  asset_cfg = SceneEntityCfg("robot", site_names=("left", "right"), site_ids=[0, 1])
+
+  result = feet_phase_position(
+    env,
+    command_name="twist",
+    cycle_time=1.0,
+    target_step_length=0.06,
+    tolerance=0.12,
+    reference_velocity=0.3,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(result, torch.zeros(2), atol=1e-6, rtol=0)
+
+
+def test_planar_joint_velocity_error_penalizes_under_and_overspeed_symmetrically():
+  asset = SimpleNamespace(
+    data=SimpleNamespace(joint_vel=torch.tensor([[0.1, 0.0], [0.3, 0.0], [0.2, 0.1]]))
+  )
+  command_manager = MagicMock()
+  command_manager.get_command.return_value = torch.tensor([[0.2, 0.0, 0.0]] * 3)
+  env = cast(
+    "ManagerBasedRlEnv",
+    SimpleNamespace(scene={"robot": asset}, command_manager=command_manager),
+  )
+  asset_cfg = SceneEntityCfg(
+    "robot", joint_names=("base_x", "base_z"), joint_ids=[0, 1]
+  )
+
+  result = planar_joint_velocity_error(
+    env,
+    command_name="twist",
+    beta=0.1,
+    vertical_velocity_weight=0.25,
+    asset_cfg=asset_cfg,
+  )
+
+  torch.testing.assert_close(result, torch.tensor([0.05, 0.05, 0.025]))
 
 
 def test_feet_phase_alignment_requires_lead_direction_to_switch():

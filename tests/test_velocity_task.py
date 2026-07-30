@@ -52,7 +52,7 @@ def test_velocity_tasks_have_twist_command(velocity_task_ids: list[str]) -> None
 
 
 def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
-  """Custom biped curriculum should preserve its initial 0.1-0.2 m/s range."""
+  """Custom biped curriculum should start with a narrow slow-speed range."""
   task_id = "Mjlab-Velocity-Flat-Forward-Custom-Biped-NoLinVel"
   cfg = load_env_cfg(task_id)
 
@@ -63,39 +63,42 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
 
   command_curriculum = cfg.curriculum["command_vel"]
   first_stage = command_curriculum.params["velocity_stages"][0]
-  assert first_stage["lin_vel_x"] == (0.1, 0.2)
+  assert first_stage["lin_vel_x"] == (0.12, 0.18)
 
   track_reward = cfg.rewards["track_linear_velocity"]
   assert track_reward.params["asset_cfg"].joint_names == ("base_x", "base_z")
-  assert track_reward.weight == 2.0
-  assert cfg.rewards["forward_velocity"].weight == 1.5
+  assert track_reward.weight == 4.0
+  assert track_reward.params["std"] == 0.15
+  assert cfg.rewards["velocity_error"].weight == -4.0
+  assert "forward_velocity" not in cfg.rewards
   assert cfg.rewards["pose"].weight == 0.03
   assert cfg.rewards["pose"].params["std_walking"][r".*_knee_joint.*"] == 0.7
   assert cfg.rewards["pose"].params["std_walking"][r".*_ankle_joint.*"] == 1.0
   assert cfg.rewards["air_time"].weight == 0.8
   assert cfg.rewards["air_time"].params["threshold_min"] == 0.2
   assert cfg.rewards["foot_slip"].weight == -0.5
-  assert cfg.rewards["action_rate_l2"].weight == -0.1
-  assert cfg.rewards["action_acc_l2"].weight == -0.05
-  assert cfg.rewards["motor_effort_l2"].weight == -0.02
-  assert cfg.rewards["alternating_feet"].weight == 3.0
+  assert cfg.rewards["action_rate_l2"].weight == -0.02
+  assert cfg.rewards["action_acc_l2"].weight == -0.01
+  assert cfg.rewards["motor_effort_l2"].weight == -0.005
+  assert cfg.rewards["alternating_feet"].weight == 1.5
   assert cfg.rewards["alternating_feet"].params["minimum_air_time"] == 0.25
   assert cfg.rewards["alternating_feet"].params["rapid_landing_penalty"] == 1.0
   assert cfg.rewards["alternating_feet"].params["target_step_length"] == 0.08
-  assert cfg.rewards["foot_lead_switch"].weight == 1.0
+  assert cfg.rewards["foot_lead_switch"].weight == 0.25
   assert cfg.rewards["foot_lead_switch"].params["maximum_stagnation_time"] == 0.6
   assert cfg.rewards["foot_lead_switch"].params["maximum_penalty_scale"] == 2.0
-  assert cfg.rewards["phase_foot_position"].weight == -1.5
+  assert cfg.rewards["phase_foot_position"].weight == -0.5
   assert cfg.rewards["phase_foot_position"].params["cycle_time"] == 1.0
-  assert cfg.rewards["phase_foot_alignment"].weight == 6.0
+  assert cfg.rewards["phase_foot_position"].params["reference_velocity"] == 0.3
+  assert cfg.rewards["phase_foot_alignment"].weight == 2.0
   assert cfg.rewards["phase_foot_contact"].weight == 2.0
   assert cfg.rewards["phase_foot_contact"].params["cycle_time"] == 1.0
   assert cfg.rewards["phase_foot_height"].weight == -2.0
   assert cfg.rewards["phase_foot_height"].params["target_height"] == 0.04
-  assert cfg.rewards["phase_joint_position"].weight == -1.5
+  assert cfg.rewards["phase_joint_position"].weight == -0.5
   assert cfg.rewards["phase_joint_position"].params["hip_amplitude"] == 0.12
   assert cfg.rewards["phase_joint_position"].params["tolerance"] == 0.2
-  assert cfg.rewards["swing_forward_velocity"].weight == 2.0
+  assert cfg.rewards["swing_forward_velocity"].weight == 1.0
   assert cfg.rewards["swing_forward_velocity"].params["cycle_time"] == 1.0
   assert cfg.rewards["termination_penalty"].weight == -200.0
   assert cfg.rewards["alive"].weight == 1.0

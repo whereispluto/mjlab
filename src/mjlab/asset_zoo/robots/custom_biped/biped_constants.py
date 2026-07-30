@@ -95,10 +95,19 @@ def get_custom_biped_robot_cfg() -> EntityCfg:
   )
 
 
-# Action range is a kinematic policy interface, not a motor torque limit. Keep the
-# existing actor output mapping when changing to the real 2 N m continuous rating.
+# With the low real-controller gain, the old 0.25--0.40 rad action range could
+# produce only 0.04--0.06 N m of static PD torque. That is below the roughly
+# 0.32 N m needed at each hip in the nominal crouch. Keep the real Kp/Kd unchanged
+# and scale the position target range so the policy can access most, but not all,
+# of the motor's continuous torque through position error.
+CUSTOM_BIPED_POLICY_EFFORT_FRACTION = 0.8
+CUSTOM_BIPED_POSITION_ACTION_SCALE = (
+  CUSTOM_BIPED_POLICY_EFFORT_FRACTION
+  * HTDW4438_RATED_TORQUE
+  / HTDW4438_POSITION_STIFFNESS
+)
 CUSTOM_BIPED_ACTION_SCALE: dict[str, float] = {
-  ".*_leg_joint": 0.2473661710,
-  ".*_knee_joint": 0.3957858736,
-  ".*_ankle_joint": 0.2671554647,
+  ".*_leg_joint": CUSTOM_BIPED_POSITION_ACTION_SCALE,
+  ".*_knee_joint": CUSTOM_BIPED_POSITION_ACTION_SCALE,
+  ".*_ankle_joint": CUSTOM_BIPED_POSITION_ACTION_SCALE,
 }
