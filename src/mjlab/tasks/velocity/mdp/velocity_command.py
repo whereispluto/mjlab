@@ -57,6 +57,10 @@ class UniformVelocityCommand(CommandTerm):
 
     self.metrics["error_vel_xy"] = torch.zeros(self.num_envs, device=self.device)
     self.metrics["error_vel_yaw"] = torch.zeros(self.num_envs, device=self.device)
+    self._terminal_actual_velocity_sum = torch.zeros(self.num_envs, device=self.device)
+    self._terminal_command_velocity_sum = torch.zeros(self.num_envs, device=self.device)
+    self._terminal_log_steps = 0
+    self._terminal_log_elapsed_s = 0.0
 
     # Set by create_gui() when the viewer is active.
     self._joystick_enabled: viser.GuiCheckboxHandle | None = None
@@ -87,6 +91,33 @@ class UniformVelocityCommand(CommandTerm):
       torch.abs(self.vel_command_b[:, 2] - self.robot.data.root_link_ang_vel_b[:, 2])
       / max_command_step
     )
+    self._update_terminal_velocity_log(actual_lin_vel_xy[:, 0])
+
+  def _update_terminal_velocity_log(self, actual_velocity_x: torch.Tensor) -> None:
+    interval_s = self.cfg.terminal_log_interval_s
+    if interval_s is None:
+      return
+
+    self._terminal_actual_velocity_sum += actual_velocity_x
+    self._terminal_command_velocity_sum += self.vel_command_b[:, 0]
+    self._terminal_log_steps += 1
+    self._terminal_log_elapsed_s += self._env.step_dt
+    if self._terminal_log_elapsed_s < interval_s:
+      return
+
+    actual_per_env = self._terminal_actual_velocity_sum / self._terminal_log_steps
+    command_per_env = self._terminal_command_velocity_sum / self._terminal_log_steps
+    actual_mean = torch.mean(actual_per_env).item()
+    command_mean = torch.mean(command_per_env).item()
+    actual_std = torch.std(actual_per_env, correction=0).item()
+    print(
+      f"[VELOCITY] command_x={command_mean:+.3f} m/s, "
+      f"actual_x={actual_mean:+.3f} m/s, env_std={actual_std:.3f} m/s"
+    )
+    self._terminal_actual_velocity_sum.zero_()
+    self._terminal_command_velocity_sum.zero_()
+    self._terminal_log_steps = 0
+    self._terminal_log_elapsed_s = 0.0
 
   def _resample_command(self, env_ids: torch.Tensor) -> None:
     r = torch.empty(len(env_ids), device=self.device)
@@ -169,9 +200,9 @@ class UniformVelocityCommand(CommandTerm):
     ranges = self.cfg.ranges
 
     axes = [
-      ("lin_vel_x", ranges.lin_vel_x[1]),
-      ("lin_vel_y", ranges.lin_vel_y[1]),
-      ("ang_vel_z", ranges.ang_vel_z[1]),
+      ("lin_vel_x", max(abs(ranges.lin_vel_x[0]), abs(ranges.lin_vel_x[1]), 0.1)),
+      ("lin_vel_y", max(abs(ranges.lin_vel_y[0]), abs(ranges.lin_vel_y[1]), 0.1)),
+      ("ang_vel_z", max(abs(ranges.ang_vel_z[0]), abs(ranges.ang_vel_z[1]), 0.1)),
     ]
     sliders: list = []
 
@@ -320,6 +351,11 @@ class UniformVelocityCommandCfg(CommandTermCfg):
   lin_vel_x, zero lin_vel_y and ang_vel_z). Increases training coverage for
   straight-line walking, which is important for stair climbing."""
   init_velocity_prob: float = 0.0
+  terminal_log_interval_s: float | None = None
+  """Print command and actual forward velocity averages at this interval.
+
+  This is intended for interactive play and should remain ``None`` during training.
+  """
 
   @dataclass
   class Ranges:
@@ -341,6 +377,8 @@ class UniformVelocityCommandCfg(CommandTermCfg):
     return UniformVelocityCommand(self, env)
 
   def __post_init__(self):
+    if self.terminal_log_interval_s is not None and self.terminal_log_interval_s <= 0:
+      raise ValueError("terminal_log_interval_s must be positive when set")
     if self.heading_command and self.ranges.heading is None:
       raise ValueError(
         "The velocity command has heading commands active (heading_command=True) but "

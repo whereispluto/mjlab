@@ -37,6 +37,7 @@ def test_apply_velocity_command_override_sets_fixed_forward_command() -> None:
   assert twist_cmd.ranges.lin_vel_x == (0.2, 0.2)
   assert twist_cmd.ranges.lin_vel_y == (0.0, 0.0)
   assert twist_cmd.ranges.ang_vel_z == (0.0, 0.0)
+  assert twist_cmd.terminal_log_interval_s == 1.0
   assert twist_cmd.ranges.heading is None
   assert not twist_cmd.heading_command
   assert twist_cmd.rel_standing_envs == 0.0

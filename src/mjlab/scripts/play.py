@@ -82,6 +82,7 @@ def _apply_velocity_command_override(
   twist_cmd.rel_heading_envs = 0.0
   twist_cmd.rel_world_envs = 0.0
   twist_cmd.rel_forward_envs = 0.0
+  twist_cmd.terminal_log_interval_s = 1.0
 
 
 def run_play(task_id: str, cfg: PlayConfig):

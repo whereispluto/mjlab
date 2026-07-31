@@ -8,6 +8,8 @@ Upcoming version (not yet released)
 Changed
 ^^^^^^^
 
+- ``play --command-x`` now prints one-second averages of the commanded and actual
+  forward velocity to the terminal.
 - Updated the custom biped no-linear-velocity task for the real low-gain motor
   controller: position actions now expose useful continuous torque authority,
   velocity rewards penalize overspeeding, gait references scale with the commanded
