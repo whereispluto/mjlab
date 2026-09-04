@@ -10,10 +10,15 @@ from mjlab.asset_zoo.robots import (
 from mjlab.asset_zoo.robots.custom_biped.biped_constants import (
   CUSTOM_BIPED_ACTION_SCALE,
   CUSTOM_BIPED_POLICY_EFFORT_FRACTION,
+  HTDW4438_DAMPING_RATIO,
+  HTDW4438_NATURAL_FREQ,
   HTDW4438_NO_LOAD_SPEED,
   HTDW4438_POSITION_DAMPING,
   HTDW4438_POSITION_STIFFNESS,
   HTDW4438_RATED_TORQUE,
+  HTDW4438_REDUCTION_RATIO,
+  HTDW4438_REFLECTED_INERTIA,
+  HTDW4438_ROTOR_INERTIA,
   HTDW4438_STALL_TORQUE,
 )
 from mjlab.entity import Entity
@@ -65,10 +70,26 @@ def test_custom_biped_uses_htdw4438_motor_limits() -> None:
     assert actuator.velocity_limit == pytest.approx(HTDW4438_NO_LOAD_SPEED)
     assert actuator.stiffness == pytest.approx(HTDW4438_POSITION_STIFFNESS)
     assert actuator.damping == pytest.approx(HTDW4438_POSITION_DAMPING)
+    assert actuator.armature == pytest.approx(HTDW4438_REFLECTED_INERTIA)
+
+
+def test_custom_biped_reflects_htdw4438_rotor_inertia_through_reducer() -> None:
+  assert HTDW4438_REFLECTED_INERTIA == pytest.approx(
+    HTDW4438_ROTOR_INERTIA * HTDW4438_REDUCTION_RATIO**2
+  )
+
+
+def test_custom_biped_pd_gains_follow_natural_frequency_design() -> None:
+  assert HTDW4438_POSITION_STIFFNESS == pytest.approx(
+    HTDW4438_REFLECTED_INERTIA * HTDW4438_NATURAL_FREQ**2
+  )
+  assert HTDW4438_POSITION_DAMPING == pytest.approx(
+    2.0 * HTDW4438_DAMPING_RATIO * HTDW4438_REFLECTED_INERTIA * HTDW4438_NATURAL_FREQ
+  )
 
 
 def test_custom_biped_action_scale_exposes_continuous_effort_authority() -> None:
-  """Position actions should remain useful with the real low controller gain."""
+  """Position actions should expose the configured continuous torque fraction."""
   expected_effort = HTDW4438_RATED_TORQUE * CUSTOM_BIPED_POLICY_EFFORT_FRACTION
   for scale in CUSTOM_BIPED_ACTION_SCALE.values():
     assert HTDW4438_POSITION_STIFFNESS * scale == pytest.approx(expected_effort)

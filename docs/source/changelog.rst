@@ -8,6 +8,9 @@ Upcoming version (not yet released)
 Changed
 ^^^^^^^
 
+- Replaced the custom biped's estimated actuator armature with the
+  HTDW-4438-30 rotor inertia reflected through its 30:1 reducer, and derive its PD
+  gains from a 10 Hz natural frequency and 2.0 damping ratio.
 - ``play --command-x`` now prints one-second averages of the commanded and actual
   forward velocity to the terminal.
 - Updated the custom biped no-linear-velocity task for the real low-gain motor
