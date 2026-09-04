@@ -61,6 +61,14 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert twist_cmd.rel_forward_envs == 0.0
   assert twist_cmd.forward_velocity_joint_name == "base_x"
 
+  foot_friction = cfg.events["foot_friction"]
+  assert foot_friction.params["asset_cfg"].geom_names == (
+    "left_foot_collision",
+    "right_foot_collision",
+  )
+  assert foot_friction.params["ranges"] == (0.4, 1.0)
+  assert foot_friction.params["shared_random"] is True
+
   command_curriculum = cfg.curriculum["command_vel"]
   first_stage = command_curriculum.params["velocity_stages"][0]
   assert first_stage["lin_vel_x"] == (0.12, 0.18)

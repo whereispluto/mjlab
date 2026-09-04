@@ -11,6 +11,8 @@ Changed
 - Replaced the custom biped's estimated actuator armature with the
   HTDW-4438-30 rotor inertia reflected through its 30:1 reducer, and derive its PD
   gains from a 10 Hz natural frequency and 2.0 damping ratio.
+- Set the custom biped foot meshes' nominal sliding friction to 0.6 and enable
+  per-environment foot-friction randomization during velocity training.
 - ``play --command-x`` now prints one-second averages of the commanded and actual
   forward velocity to the terminal.
 - Updated the custom biped no-linear-velocity task for the real low-gain motor

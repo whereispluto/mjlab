@@ -56,6 +56,15 @@ def test_custom_biped_home_pose_is_bilaterally_symmetric() -> None:
   ) == pytest.approx(0.0)
 
 
+def test_custom_biped_foot_meshes_use_g1_sliding_friction() -> None:
+  model = Entity(get_custom_biped_robot_cfg()).compile()
+
+  for name in ("left_foot_collision", "right_foot_collision"):
+    geom_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, name)
+    assert geom_id >= 0
+    assert model.geom_friction[geom_id, 0] == pytest.approx(0.6)
+
+
 def test_custom_biped_uses_htdw4438_motor_limits() -> None:
   """All six drive joints should use the HTDW-4438-30 output ratings."""
   articulation = get_custom_biped_robot_cfg().articulation

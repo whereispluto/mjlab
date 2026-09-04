@@ -154,7 +154,11 @@ def _custom_biped_flat_forward_env_cfg(
   twist_cmd.ranges.lin_vel_y = (0.0, 0.0)
   twist_cmd.ranges.ang_vel_z = (0.0, 0.0)
 
-  cfg.events.pop("foot_friction", None)
+  cfg.events["foot_friction"].params["asset_cfg"].geom_names = (
+    "left_foot_collision",
+    "right_foot_collision",
+  )
+  cfg.events["foot_friction"].params["ranges"] = (0.4, 1.0)
   cfg.events["base_com"].params["asset_cfg"].body_names = ("base_link",)
 
   cfg.rewards["upright"].params["asset_cfg"].body_names = ("base_link",)
