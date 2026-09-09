@@ -9,7 +9,6 @@ from mjlab.asset_zoo.robots import (
 )
 from mjlab.asset_zoo.robots.custom_biped.biped_constants import (
   CUSTOM_BIPED_ACTION_SCALE,
-  CUSTOM_BIPED_POLICY_EFFORT_FRACTION,
   HTDW4438_DAMPING_RATIO,
   HTDW4438_NATURAL_FREQ,
   HTDW4438_NO_LOAD_SPEED,
@@ -97,8 +96,8 @@ def test_custom_biped_pd_gains_follow_natural_frequency_design() -> None:
   )
 
 
-def test_custom_biped_action_scale_exposes_continuous_effort_authority() -> None:
-  """Position actions should expose the configured continuous torque fraction."""
-  expected_effort = HTDW4438_RATED_TORQUE * CUSTOM_BIPED_POLICY_EFFORT_FRACTION
-  for scale in CUSTOM_BIPED_ACTION_SCALE.values():
-    assert HTDW4438_POSITION_STIFFNESS * scale == pytest.approx(expected_effort)
+def test_custom_biped_action_scale_covers_gait_reference() -> None:
+  """Position targets should cover gait motion; actuators limit effort separately."""
+  assert CUSTOM_BIPED_ACTION_SCALE[".*_leg_joint"] >= 0.12
+  assert CUSTOM_BIPED_ACTION_SCALE[".*_knee_joint"] >= 0.25
+  assert CUSTOM_BIPED_ACTION_SCALE[".*_ankle_joint"] >= 0.25

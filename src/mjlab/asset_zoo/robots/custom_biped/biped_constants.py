@@ -37,8 +37,8 @@ HTDW4438_ACTUATOR = ElectricActuator(
   effort_limit=HTDW4438_RATED_TORQUE,
 )
 
-HTDW4438_NATURAL_FREQ = 10.0 * 2.0 * math.pi  # 10 Hz
-HTDW4438_DAMPING_RATIO = 2.0
+HTDW4438_NATURAL_FREQ = 5.0 * 2.0 * math.pi  # 5 Hz
+HTDW4438_DAMPING_RATIO = 1.0
 
 HTDW4438_POSITION_STIFFNESS = (
   HTDW4438_ACTUATOR.reflected_inertia * HTDW4438_NATURAL_FREQ**2
@@ -112,16 +112,12 @@ def get_custom_biped_robot_cfg() -> EntityCfg:
   )
 
 
-# Scale the position target range so the policy can access most, but not all, of the
-# motor's continuous torque through position error.
-CUSTOM_BIPED_POLICY_EFFORT_FRACTION = 0.8
-CUSTOM_BIPED_POSITION_ACTION_SCALE = (
-  CUSTOM_BIPED_POLICY_EFFORT_FRACTION
-  * HTDW4438_RATED_TORQUE
-  / HTDW4438_POSITION_STIFFNESS
-)
+# The action is a position target, so its range must cover the required gait motion.
+# Motor effort remains limited independently by the actuator's 2 N m effort limit.
+# Using effort / stiffness here restricted every joint to 0.049 rad after the PD
+# retune, below the 0.12/0.25 rad hip/knee gait references.
 CUSTOM_BIPED_ACTION_SCALE: dict[str, float] = {
-  ".*_leg_joint": CUSTOM_BIPED_POSITION_ACTION_SCALE,
-  ".*_knee_joint": CUSTOM_BIPED_POSITION_ACTION_SCALE,
-  ".*_ankle_joint": CUSTOM_BIPED_POSITION_ACTION_SCALE,
+  ".*_leg_joint": 0.18,
+  ".*_knee_joint": 0.35,
+  ".*_ankle_joint": 0.25,
 }

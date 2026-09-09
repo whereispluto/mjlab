@@ -287,8 +287,8 @@ def _custom_biped_flat_forward_env_cfg(
       r"^(?!(.*_leg_joint.*|.*_knee_joint.*|.*_ankle_joint.*)).*$": 0.1,
     }
     cfg.rewards["track_linear_velocity"].func = mdp.track_planar_joint_velocity
-    cfg.rewards["track_linear_velocity"].weight = 4.0
-    cfg.rewards["track_linear_velocity"].params["std"] = 0.15
+    cfg.rewards["track_linear_velocity"].weight = 6.0
+    cfg.rewards["track_linear_velocity"].params["std"] = 0.2
     cfg.rewards["track_linear_velocity"].params["asset_cfg"] = SceneEntityCfg(
       "robot",
       joint_names=("base_x", "base_z"),
@@ -296,7 +296,7 @@ def _custom_biped_flat_forward_env_cfg(
     )
     cfg.rewards["velocity_error"] = RewardTermCfg(
       func=mdp.planar_joint_velocity_error,
-      weight=-4.0,
+      weight=-8.0,
       params={
         "command_name": "twist",
         "beta": 0.1,
@@ -304,6 +304,14 @@ def _custom_biped_flat_forward_env_cfg(
         "asset_cfg": SceneEntityCfg(
           "robot", joint_names=("base_x", "base_z"), preserve_order=True
         ),
+      },
+    )
+    cfg.rewards["forward_velocity"] = RewardTermCfg(
+      func=mdp.forward_velocity,
+      weight=2.0,
+      params={
+        "command_name": "twist",
+        "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
       },
     )
     cfg.rewards["action_rate_l2"].weight = -0.02

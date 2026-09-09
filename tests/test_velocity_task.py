@@ -75,10 +75,10 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
 
   track_reward = cfg.rewards["track_linear_velocity"]
   assert track_reward.params["asset_cfg"].joint_names == ("base_x", "base_z")
-  assert track_reward.weight == 4.0
-  assert track_reward.params["std"] == 0.15
-  assert cfg.rewards["velocity_error"].weight == -4.0
-  assert "forward_velocity" not in cfg.rewards
+  assert track_reward.weight == 6.0
+  assert track_reward.params["std"] == 0.2
+  assert cfg.rewards["velocity_error"].weight == -8.0
+  assert cfg.rewards["forward_velocity"].weight == 2.0
   assert cfg.rewards["pose"].weight == 0.03
   assert cfg.rewards["pose"].params["std_walking"][r".*_knee_joint.*"] == 0.7
   assert cfg.rewards["pose"].params["std_walking"][r".*_ankle_joint.*"] == 1.0
@@ -97,6 +97,7 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["foot_lead_switch"].params["maximum_penalty_scale"] == 2.0
   assert cfg.rewards["phase_foot_position"].weight == -0.5
   assert cfg.rewards["phase_foot_position"].params["cycle_time"] == 1.0
+  assert cfg.rewards["phase_foot_position"].params["target_step_length"] == 0.06
   assert cfg.rewards["phase_foot_position"].params["reference_velocity"] == 0.3
   assert cfg.rewards["phase_foot_alignment"].weight == 2.0
   assert cfg.rewards["phase_foot_contact"].weight == 2.0
@@ -105,6 +106,7 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["phase_foot_height"].params["target_height"] == 0.04
   assert cfg.rewards["phase_joint_position"].weight == -0.5
   assert cfg.rewards["phase_joint_position"].params["hip_amplitude"] == 0.12
+  assert cfg.rewards["phase_joint_position"].params["knee_amplitude"] == 0.25
   assert cfg.rewards["phase_joint_position"].params["tolerance"] == 0.2
   assert cfg.rewards["swing_forward_velocity"].weight == 1.0
   assert cfg.rewards["swing_forward_velocity"].params["cycle_time"] == 1.0
@@ -136,6 +138,8 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert critic_terms["joint_vel"].history_length == 4
   assert cfg.rewards["foot_flatness"].weight == -3.0
   assert cfg.rewards["both_feet_contact"].weight == -0.2
+  assert cfg.rewards["foot_clearance"].weight == -1.0
+  assert cfg.rewards["foot_swing_height"].weight == -0.5
 
 
 def test_g1_velocity_has_required_sensors(g1_velocity_task_ids: list[str]) -> None:

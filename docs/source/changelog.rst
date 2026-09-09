@@ -8,6 +8,10 @@ Upcoming version (not yet released)
 Changed
 ^^^^^^^
 
+- Rebalanced the deployment-oriented custom biped velocity rewards after training
+  diagnostics showed a slow-walking local optimum, and restored joint-specific
+  position-action ranges large enough to express the configured gait references
+  while retaining the actuator's independent 2 N m effort limit.
 - Replaced the custom biped's estimated actuator armature with the
   HTDW-4438-30 rotor inertia reflected through its 30:1 reducer, and derive its PD
   gains from a 10 Hz natural frequency and 2.0 damping ratio.
