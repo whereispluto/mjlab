@@ -15,7 +15,9 @@
         <geom  condim='4' contype="1" conaffinity="15" solref='0.001 2' friction='0.9 0.2 0.2'/>
         <equality solref='0.001 2'/>
         <default class='leg_joint_param'>
-            <joint  damping="0.01" frictionloss="0.01" armature="0.01"/>
+            <!-- HTDW-4438-30 rotor inertia (9.1498e-6 kg m^2) reflected
+                 through the 30:1 reducer: 9.1498e-6 * 30^2 = 0.00823482. -->
+            <joint damping="0.01" frictionloss="0.01" armature="0.00823482"/>
         </default>
     </default>
   <statistic meansize="0.164352" extent="1.07561" center="-0.00820016 -1.48012e-05 -0.160784"/>

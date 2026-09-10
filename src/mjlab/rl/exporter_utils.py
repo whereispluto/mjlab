@@ -48,7 +48,7 @@ def get_base_metadata(
   ]
   joint_stiffness = env.sim.mj_model.actuator_gainprm[ctrl_ids_natural, 0]
   joint_damping = -env.sim.mj_model.actuator_biasprm[ctrl_ids_natural, 2]
-  return {
+  metadata: dict[str, list | str | float] = {
     "run_path": run_path,
     "joint_names": list(robot.joint_names),
     "joint_stiffness": joint_stiffness.tolist(),
@@ -60,6 +60,17 @@ def get_base_metadata(
     if isinstance(joint_action._scale, torch.Tensor)
     else joint_action._scale,
   }
+  actor_cfg = env.cfg.observations.get("actor")
+  if actor_cfg is not None and "projected_gravity" in actor_cfg.terms:
+    projected_gravity_cfg = actor_cfg.terms["projected_gravity"].params.get("asset_cfg")
+    if projected_gravity_cfg is not None and projected_gravity_cfg.body_names:
+      body_names = projected_gravity_cfg.body_names
+      metadata["projected_gravity_source"] = (
+        body_names if isinstance(body_names, str) else ",".join(body_names)
+      )
+    else:
+      metadata["projected_gravity_source"] = "entity_root"
+  return metadata
 
 
 def attach_metadata_to_onnx(

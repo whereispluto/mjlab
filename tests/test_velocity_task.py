@@ -123,6 +123,9 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
     "right_ankle_joint",
   )
   actor_terms = cfg.observations["actor"].terms
+  assert actor_terms["projected_gravity"].params["asset_cfg"].body_names == (
+    "base_link",
+  )
   assert actor_terms["joint_pos"].params["asset_cfg"].joint_names == (
     actuated_joint_names
   )
@@ -132,6 +135,9 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   )
   assert actor_terms["joint_vel"].params["asset_cfg"].preserve_order
   critic_terms = cfg.observations["critic"].terms
+  assert critic_terms["projected_gravity"].params["asset_cfg"].body_names == (
+    "base_link",
+  )
   assert "asset_cfg" not in critic_terms["joint_pos"].params
   assert critic_terms["joint_pos"].history_length == 4
   assert "asset_cfg" not in critic_terms["joint_vel"].params

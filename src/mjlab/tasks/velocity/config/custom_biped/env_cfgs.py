@@ -235,6 +235,11 @@ def _custom_biped_flat_forward_env_cfg(
 
   actor_terms = cfg.observations["actor"].terms
   critic_terms = cfg.observations["critic"].terms
+  projected_gravity_cfg = SceneEntityCfg("robot", body_names=("base_link",))
+  actor_terms["projected_gravity"].params["asset_cfg"] = projected_gravity_cfg
+  critic_terms["projected_gravity"].params["asset_cfg"] = deepcopy(
+    projected_gravity_cfg
+  )
   actor_terms.pop("height_scan", None)
   critic_terms.pop("height_scan", None)
   critic_terms.pop("foot_height", None)

@@ -9,6 +9,7 @@ import torch
 from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import BuiltinSensor, RayCastSensor
+from mjlab.utils.lab_api.math import quat_apply_inverse
 
 if TYPE_CHECKING:
   from mjlab.envs import ManagerBasedRlEnv
@@ -40,6 +41,11 @@ def projected_gravity(
   asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
 ) -> torch.Tensor:
   asset: Entity = env.scene[asset_cfg.name]
+  if asset_cfg.body_names is not None:
+    body_quat_w = asset.data.body_link_quat_w[:, asset_cfg.body_ids]
+    if body_quat_w.shape[1] != 1:
+      raise ValueError("projected_gravity requires exactly one selected body")
+    return quat_apply_inverse(body_quat_w.squeeze(1), asset.data.gravity_vec_w)
   return asset.data.projected_gravity_b
 
 
