@@ -319,10 +319,10 @@ def _custom_biped_flat_forward_env_cfg(
         "asset_cfg": SceneEntityCfg("robot", joint_names=("base_x",)),
       },
     )
-    cfg.rewards["action_rate_l2"].weight = -0.02
+    cfg.rewards["action_rate_l2"].weight = -0.1
     cfg.rewards["action_acc_l2"] = RewardTermCfg(
       func=mdp.action_acc_l2,
-      weight=-0.01,
+      weight=-0.02,
     )
     cfg.rewards["motor_effort_l2"] = RewardTermCfg(
       func=mdp.joint_torques_l2,

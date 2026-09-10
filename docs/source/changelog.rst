@@ -26,8 +26,9 @@ Changed
 - Updated the custom biped no-linear-velocity task for the real low-gain motor
   controller: position actions now expose useful continuous torque authority,
   velocity rewards penalize overspeeding, gait references scale with the commanded
-  speed, and the command curriculum spends longer on stable slow walking before
-  expanding to 0.4 m/s.
+  speed, action-rate and action-acceleration penalties promote smoother targets, and
+  the command curriculum spends longer on stable slow walking before expanding to
+  0.4 m/s.
 
 Added
 ^^^^^

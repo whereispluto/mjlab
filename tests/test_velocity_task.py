@@ -85,8 +85,8 @@ def test_custom_biped_no_lin_vel_starts_with_slow_forward_commands() -> None:
   assert cfg.rewards["air_time"].weight == 0.8
   assert cfg.rewards["air_time"].params["threshold_min"] == 0.2
   assert cfg.rewards["foot_slip"].weight == -0.5
-  assert cfg.rewards["action_rate_l2"].weight == -0.02
-  assert cfg.rewards["action_acc_l2"].weight == -0.01
+  assert cfg.rewards["action_rate_l2"].weight == -0.1
+  assert cfg.rewards["action_acc_l2"].weight == -0.02
   assert cfg.rewards["motor_effort_l2"].weight == -0.005
   assert cfg.rewards["alternating_feet"].weight == 1.5
   assert cfg.rewards["alternating_feet"].params["minimum_air_time"] == 0.25
