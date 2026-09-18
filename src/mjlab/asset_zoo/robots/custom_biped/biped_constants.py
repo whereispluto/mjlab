@@ -55,6 +55,7 @@ CUSTOM_BIPED_ACTUATOR_LEG = DcMotorActuatorCfg(
   stiffness=HTDW4438_POSITION_STIFFNESS,
   damping=HTDW4438_POSITION_DAMPING,
   effort_limit=HTDW4438_ACTUATOR.effort_limit,
+  enable_effort_limit=False,
   saturation_effort=HTDW4438_STALL_TORQUE,
   velocity_limit=HTDW4438_ACTUATOR.velocity_limit,
   armature=HTDW4438_ACTUATOR.reflected_inertia,
@@ -64,6 +65,7 @@ CUSTOM_BIPED_ACTUATOR_KNEE = DcMotorActuatorCfg(
   stiffness=HTDW4438_POSITION_STIFFNESS,
   damping=HTDW4438_POSITION_DAMPING,
   effort_limit=HTDW4438_ACTUATOR.effort_limit,
+  enable_effort_limit=False,
   saturation_effort=HTDW4438_STALL_TORQUE,
   velocity_limit=HTDW4438_ACTUATOR.velocity_limit,
   armature=HTDW4438_ACTUATOR.reflected_inertia,
@@ -73,6 +75,7 @@ CUSTOM_BIPED_ACTUATOR_ANKLE = DcMotorActuatorCfg(
   stiffness=HTDW4438_POSITION_STIFFNESS,
   damping=HTDW4438_POSITION_DAMPING,
   effort_limit=HTDW4438_ACTUATOR.effort_limit,
+  enable_effort_limit=False,
   saturation_effort=HTDW4438_STALL_TORQUE,
   velocity_limit=HTDW4438_ACTUATOR.velocity_limit,
   armature=HTDW4438_ACTUATOR.reflected_inertia,
@@ -113,7 +116,7 @@ def get_custom_biped_robot_cfg() -> EntityCfg:
 
 
 # The action is a position target, so its range must cover the required gait motion.
-# Motor effort remains limited independently by the actuator's 2 N m effort limit.
+# Motor effort is limited by the torque-speed envelope, without a fixed torque cap.
 # Using effort / stiffness here restricted every joint to 0.049 rad after the PD
 # retune, below the 0.12/0.25 rad hip/knee gait references.
 CUSTOM_BIPED_ACTION_SCALE: dict[str, float] = {

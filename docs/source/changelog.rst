@@ -8,6 +8,10 @@ Upcoming version (not yet released)
 Changed
 ^^^^^^^
 
+- Run custom biped physics at 500 Hz while keeping the policy at 50 Hz, match
+  G1's zero passive joint damping and friction loss, and retain the motor's
+  torque-speed envelope without the fixed 2 N m torque cap. Other DC motor
+  configurations keep their fixed effort limits by default.
 - Fixed the custom biped's projected-gravity observation to use the physical
   ``base_link`` orientation instead of the entity root transform.
 - Rebalanced the deployment-oriented custom biped velocity rewards after training

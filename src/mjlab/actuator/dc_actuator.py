@@ -30,9 +30,9 @@ class DcMotorActuatorCfg(IdealPdActuatorCfg):
   actuator behavior. The motor produces maximum torque (saturation_effort) at
   zero velocity and reduces linearly to zero torque at maximum velocity.
 
-  Note: effort_limit should be explicitly set to a realistic value for proper
-  motor modeling. Using the default (inf) will trigger a warning. Use
-  IdealPdActuator if unlimited torque is desired.
+  By default, effort_limit also caps torque independently of velocity. Disable
+  enable_effort_limit to retain only the torque-speed envelope. When the fixed
+  limit is enabled, using the default effort_limit (inf) triggers a warning.
   """
 
   saturation_effort: float
@@ -41,9 +41,18 @@ class DcMotorActuatorCfg(IdealPdActuatorCfg):
   velocity_limit: float
   """Maximum motor velocity (no-load speed)."""
 
+  enable_effort_limit: bool = True
+  """Apply effort_limit in addition to the torque-speed envelope.
+
+  False disables the fixed torque cap in both Python and MuJoCo. The signed
+  torque-speed envelope still applies, including during braking and overspeed.
+  """
+
   def __post_init__(self) -> None:
     """Validate DC motor parameters."""
     super().__post_init__()
+    if not self.enable_effort_limit:
+      return
     import warnings
 
     if self.effort_limit == float("inf"):
@@ -81,7 +90,7 @@ class DcMotorActuator(IdealPdActuator[DcMotorCfgT], Generic[DcMotorCfgT]):
   - At max velocity: can produce zero torque
   - Between: torque limit varies linearly
 
-  The continuous torque limit (effort_limit) further constrains the output.
+  When enabled, the fixed torque limit (effort_limit) also constrains the output.
   """
 
   def __init__(
@@ -96,6 +105,13 @@ class DcMotorActuator(IdealPdActuator[DcMotorCfgT], Generic[DcMotorCfgT]):
     self.velocity_limit_motor: torch.Tensor | None = None
     self._vel_at_effort_lim: torch.Tensor | None = None
     self._joint_vel_clipped: torch.Tensor | None = None
+
+  def edit_spec(self, spec: mujoco.MjSpec, target_names: list[str]) -> None:
+    super().edit_spec(spec, target_names)
+    if not self.cfg.enable_effort_limit:
+      for actuator in self._mjs_actuators:
+        actuator.ctrllimited = False
+        actuator.forcelimited = False
 
   def initialize(
     self,
@@ -141,12 +157,14 @@ class DcMotorActuator(IdealPdActuator[DcMotorCfgT], Generic[DcMotorCfgT]):
     assert self._vel_at_effort_lim is not None
     assert self._joint_vel_clipped is not None
 
-    # Clip velocity to corner velocity range.
-    vel_clipped = torch.clamp(
-      self._joint_vel_clipped,
-      min=-self._vel_at_effort_lim,
-      max=self._vel_at_effort_lim,
-    )
+    vel_clipped = self._joint_vel_clipped
+    if self.cfg.enable_effort_limit:
+      # This clipping is only needed where the fixed torque bounds intersect.
+      vel_clipped = torch.clamp(
+        vel_clipped,
+        min=-self._vel_at_effort_lim,
+        max=self._vel_at_effort_lim,
+      )
 
     # Compute torque-speed curve limits.
     torque_speed_top = self.saturation_effort * (
@@ -155,6 +173,9 @@ class DcMotorActuator(IdealPdActuator[DcMotorCfgT], Generic[DcMotorCfgT]):
     torque_speed_bottom = self.saturation_effort * (
       -1.0 - vel_clipped / self.velocity_limit_motor
     )
+
+    if not self.cfg.enable_effort_limit:
+      return torch.clamp(effort, min=torque_speed_bottom, max=torque_speed_top)
 
     # Apply continuous torque constraint.
     max_effort = torch.clamp(torque_speed_top, max=self.force_limit)

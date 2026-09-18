@@ -32,6 +32,9 @@ def _custom_biped_flat_forward_env_cfg(
 ) -> ManagerBasedRlEnvCfg:
   cfg = make_velocity_env_cfg()
 
+  # 500 Hz physics and explicit PD, with the policy kept at 50 Hz.
+  cfg.sim.mujoco.timestep = 0.002
+  cfg.decimation = 10
   cfg.sim.njmax = 200
   cfg.sim.mujoco.ccd_iterations = 50
   cfg.sim.contact_sensor_maxmatch = 64

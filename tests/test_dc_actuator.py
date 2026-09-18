@@ -1,5 +1,7 @@
 """Tests for DC motor actuator torque-speed curve."""
 
+import mujoco
+import numpy as np
 import pytest
 import torch
 from conftest import (
@@ -282,3 +284,55 @@ def test_dc_motor_warns_when_effort_limit_exceeds_saturation():
       velocity_limit=30.0,
       effort_limit=25.0,  # > saturation_effort.
     )
+
+
+@pytest.mark.parametrize("enable_effort_limit", [True, False])
+def test_dc_motor_optional_cap_preserves_signed_envelope(
+  device, robot_xml, enable_effort_limit
+):
+  """Check drive, braking and overspeed torque through Python and MuJoCo."""
+  entity = create_entity_with_actuator(
+    robot_xml,
+    DcMotorActuatorCfg(
+      target_names_expr=("joint.*",),
+      stiffness=100.0,
+      damping=0.0,
+      effort_limit=2.0,
+      enable_effort_limit=enable_effort_limit,
+      saturation_effort=10.0,
+      velocity_limit=20.0,
+    ),
+  )
+  model = entity.spec.compile()
+  data = mujoco.MjData(model)
+  entity, sim = initialize_entity(entity, device)
+
+  # Speed / no-load speed, requested torque, TN-only output, capped output.
+  cases = [
+    (0.0, 100.0, 10.0, 2.0),
+    (0.0, -100.0, -10.0, -2.0),
+    (0.0, 1.0, 1.0, 1.0),
+    (0.5, 100.0, 5.0, 2.0),
+    (-0.5, -100.0, -5.0, -2.0),
+    (1.0, 100.0, 0.0, 0.0),
+    (-1.0, -100.0, 0.0, 0.0),
+    (0.5, -100.0, -15.0, -2.0),
+    (-0.5, 100.0, 15.0, 2.0),
+    (1.5, 100.0, -5.0, -2.0),
+    (-1.5, -100.0, 5.0, 2.0),
+  ]
+  for speed_fraction, demand, tn_only, capped in cases:
+    entity.write_joint_state_to_sim(
+      torch.zeros(1, entity.num_joints, device=device),
+      torch.full((1, entity.num_joints), speed_fraction * 20.0, device=device),
+    )
+    entity.set_joint_position_target(
+      torch.full((1, entity.num_joints), demand / 100.0, device=device)
+    )
+    entity.write_data_to_sim()
+    expected = capped if enable_effort_limit else tn_only
+    control = sim.data.ctrl[0].cpu().numpy()
+    np.testing.assert_allclose(control, expected, atol=1e-5)
+    data.ctrl[:] = control
+    mujoco.mj_forward(model, data)
+    np.testing.assert_allclose(data.actuator_force, expected, atol=1e-5)
